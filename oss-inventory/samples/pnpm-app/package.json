@@ -1,0 +1,13 @@
+{
+  "name": "acme-tasks-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The pnpm sample of oss-inventory: a fictional web client of Acme Tasks whose production dependencies are inventoried live",
+  "dependencies": {
+    "qs": "^6.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "rxjs": "^7.8.0",
+    "yaml": "^2.9.1"
+  }
+}

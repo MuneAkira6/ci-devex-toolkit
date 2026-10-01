@@ -1,0 +1,111 @@
+{
+    "dependencies": [
+        {
+            "moduleName": "aopalliance:aopalliance",
+            "moduleUrl": "http://aopalliance.sourceforge.net",
+            "moduleVersion": "1.0",
+            "moduleLicense": "Public Domain",
+            "moduleLicenseUrl": ""
+        },
+        {
+            "moduleName": "ch.qos.logback:logback-classic",
+            "moduleUrl": "http://www.qos.ch",
+            "moduleVersion": "1.6.5",
+            "moduleLicense": "LGPL-2.1-only",
+            "moduleLicenseUrl": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html"
+        },
+        {
+            "moduleName": "ch.qos.logback:logback-core",
+            "moduleUrl": "http://www.qos.ch",
+            "moduleVersion": "1.6.5",
+            "moduleLicense": "LGPL-2.1-only",
+            "moduleLicenseUrl": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html"
+        },
+        {
+            "moduleName": "com.fasterxml.jackson.core:jackson-annotations",
+            "moduleUrl": "https://github.com/FasterXML/jackson",
+            "moduleVersion": "2.22",
+            "moduleLicense": "The Apache Software License, Version 2.0",
+            "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.fasterxml.jackson.core:jackson-core",
+            "moduleUrl": "https://github.com/FasterXML/jackson-core",
+            "moduleVersion": "2.22.3",
+            "moduleLicense": "The Apache Software License, Version 2.0",
+            "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.fasterxml.jackson.core:jackson-databind",
+            "moduleUrl": "https://github.com/FasterXML/jackson",
+            "moduleVersion": "2.22.3",
+            "moduleLicense": "The Apache Software License, Version 2.0",
+            "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.fasterxml.jackson:jackson-bom",
+            "moduleUrl": "https://github.com/FasterXML/jackson-bom",
+            "moduleVersion": "2.22.3",
+            "moduleLicense": "The Apache Software License, Version 2.0",
+            "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.google.errorprone:error_prone_annotations",
+            "moduleUrl": "https://errorprone.info/error_prone_annotations",
+            "moduleVersion": "2.50.0",
+            "moduleLicense": "Apache 2.0",
+            "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.google.guava:failureaccess",
+            "moduleUrl": "https://github.com/google/guava/",
+            "moduleVersion": "1.0.3",
+            "moduleLicense": "Apache License, Version 2.0",
+            "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.google.guava:guava",
+            "moduleUrl": "https://github.com/google/guava/",
+            "moduleVersion": "33.7.2-jre",
+            "moduleLicense": "Apache License, Version 2.0",
+            "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.google.guava:listenablefuture",
+            "moduleVersion": "9999.0-empty-to-avoid-conflict-with-guava",
+            "moduleLicense": "The Apache Software License, Version 2.0",
+            "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.google.j2objc:j2objc-annotations",
+            "moduleUrl": "https://github.com/google/j2objc/",
+            "moduleVersion": "3.1",
+            "moduleLicense": "Apache License, Version 2.0",
+            "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "com.h2database:h2",
+            "moduleUrl": "https://h2database.com",
+            "moduleVersion": "2.5.252",
+            "moduleLicense": "MPL 2.0",
+            "moduleLicenseUrl": "https://www.mozilla.org/en-US/MPL/2.0/"
+        },
+        {
+            "moduleName": "org.jspecify:jspecify",
+            "moduleUrl": "https://jspecify.dev/docs/start-here",
+            "moduleVersion": "1.0.1",
+            "moduleLicense": "The Apache License, Version 2.0",
+            "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+        },
+        {
+            "moduleName": "org.slf4j:slf4j-api",
+            "moduleUrl": "http://www.slf4j.org",
+            "moduleVersion": "2.0.20",
+            "moduleLicense": "MIT",
+            "moduleLicenseUrl": "https://opensource.org/license/mit"
+        }
+    ],
+    "importedModules": [
+        
+    ]
+}

@@ -1,0 +1,5 @@
+Public domain
+
+The authors of this dependency declare it to be in the public domain (the license named in its POM
+is "Public Domain", with no license text). No license terms apply. It is listed here so that the
+inventory is complete.

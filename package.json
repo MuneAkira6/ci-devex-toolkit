@@ -1,0 +1,34 @@
+{
+  "name": "ci-devex-toolkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An OSS license inventory across pnpm, sbt and Gradle, a devcontainer I/O A/B harness, a PR compile check for a self-hosted runner, and a helper for two repositories in one working tree",
+  "type": "module",
+  "packageManager": "pnpm@11.28.0",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "inventory": "node oss-inventory/src/cli.ts",
+    "workflow:check": "node pr-compile-check/tools/check-workflow.ts",
+    "relay:test": "node pr-compile-check/relay/test/run.ts",
+    "ioab": "node devcontainer-io-ab/measure.ts",
+    "assets:selftest": "bash two-repos-one-worktree/test/selftest.sh",
+    "actionlint": "node tools/actionlint.ts",
+    "shellcheck": "node tools/shellcheck.ts"
+  },
+  "dependencies": {
+    "spdx-expression-parse": "^5.0.0",
+    "spdx-license-list": "^6.12.0",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^24.0.0",
+    "@types/spdx-expression-parse": "^4.0.0",
+    "pnpm": "11.28.0",
+    "typescript": "^7.0.0",
+    "vitest": "^5.0.0"
+  }
+}

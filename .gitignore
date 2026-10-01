@@ -1,0 +1,21 @@
+node_modules/
+.claude/
+out/
+reports/
+
+# outputs of the JVM samples when a human or CI regenerates their reports
+oss-inventory/samples/gradle-app/build/
+oss-inventory/samples/gradle-app/.gradle/
+oss-inventory/samples/sbt-app/target/
+oss-inventory/samples/sbt-app/project/target/
+oss-inventory/samples/sbt-app/project/project/
+
+# the measured project's own install, build and generated modules
+devcontainer-io-ab/sample/node_modules/
+devcontainer-io-ab/sample/dist/
+devcontainer-io-ab/sample/src/generated/
+devcontainer-io-ab/sample/.store/
+devcontainer-io-ab/sample/.cache/
+
+# the relay's real upstream credentials
+pr-compile-check/relay/.env

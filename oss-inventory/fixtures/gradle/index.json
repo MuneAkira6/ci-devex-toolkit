@@ -1,0 +1,240 @@
+{
+    "dependencies": [
+        {
+            "moduleName": "aopalliance:aopalliance",
+            "moduleVersion": "1.0",
+            "moduleUrls": [
+                "http://aopalliance.sourceforge.net"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Public Domain",
+                    "moduleLicenseUrl": ""
+                }
+            ]
+        },
+        {
+            "moduleName": "ch.qos.logback:logback-classic",
+            "moduleVersion": "1.6.5",
+            "moduleUrls": [
+                "http://www.qos.ch"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "EPL-2.0",
+                    "moduleLicenseUrl": "https://www.eclipse.org/legal/epl-v20.html"
+                },
+                {
+                    "moduleLicense": "LGPL-2.1-only",
+                    "moduleLicenseUrl": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html"
+                }
+            ]
+        },
+        {
+            "moduleName": "ch.qos.logback:logback-core",
+            "moduleVersion": "1.6.5",
+            "moduleUrls": [
+                "http://www.qos.ch"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "EPL-2.0",
+                    "moduleLicenseUrl": "https://www.eclipse.org/legal/epl-v20.html"
+                },
+                {
+                    "moduleLicense": "LGPL-2.1-only",
+                    "moduleLicenseUrl": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.fasterxml.jackson.core:jackson-annotations",
+            "moduleVersion": "2.22",
+            "moduleUrls": [
+                "https://github.com/FasterXML/jackson"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Apache License, Version 2.0",
+                    "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0"
+                },
+                {
+                    "moduleLicense": "The Apache Software License, Version 2.0",
+                    "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.fasterxml.jackson.core:jackson-core",
+            "moduleVersion": "2.22.3",
+            "moduleUrls": [
+                "https://github.com/FasterXML/jackson-core"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Apache License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                },
+                {
+                    "moduleLicense": "The Apache Software License, Version 2.0",
+                    "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.fasterxml.jackson.core:jackson-databind",
+            "moduleVersion": "2.22.3",
+            "moduleUrls": [
+                "https://github.com/FasterXML/jackson"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Apache License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                },
+                {
+                    "moduleLicense": "The Apache Software License, Version 2.0",
+                    "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.fasterxml.jackson:jackson-bom",
+            "moduleVersion": "2.22.3",
+            "moduleUrls": [
+                "https://github.com/FasterXML/jackson-bom"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Apache License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                },
+                {
+                    "moduleLicense": "The Apache Software License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.google.errorprone:error_prone_annotations",
+            "moduleVersion": "2.50.0",
+            "moduleUrls": [
+                "https://errorprone.info/error_prone_annotations"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Apache 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.google.guava:failureaccess",
+            "moduleVersion": "1.0.3",
+            "moduleUrls": [
+                "https://github.com/google/guava/"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Apache License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.google.guava:guava",
+            "moduleVersion": "33.7.2-jre",
+            "moduleUrls": [
+                "https://github.com/google/guava",
+                "https://github.com/google/guava/"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Apache License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.google.guava:listenablefuture",
+            "moduleVersion": "9999.0-empty-to-avoid-conflict-with-guava",
+            "moduleUrls": [
+                
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "The Apache Software License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.google.j2objc:j2objc-annotations",
+            "moduleVersion": "3.1",
+            "moduleUrls": [
+                "https://github.com/google/j2objc/"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "Apache License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "com.h2database:h2",
+            "moduleVersion": "2.5.252",
+            "moduleUrls": [
+                "https://h2database.com"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": null,
+                    "moduleLicenseUrl": "https://h2database.com/html/license.html"
+                },
+                {
+                    "moduleLicense": "EPL 1.0",
+                    "moduleLicenseUrl": "https://opensource.org/licenses/eclipse-1.0.php"
+                },
+                {
+                    "moduleLicense": "MPL 2.0",
+                    "moduleLicenseUrl": "https://www.mozilla.org/en-US/MPL/2.0/"
+                }
+            ]
+        },
+        {
+            "moduleName": "org.jspecify:jspecify",
+            "moduleVersion": "1.0.1",
+            "moduleUrls": [
+                "https://jspecify.dev/",
+                "https://jspecify.dev/docs/start-here"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": null,
+                    "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0"
+                },
+                {
+                    "moduleLicense": "The Apache License, Version 2.0",
+                    "moduleLicenseUrl": "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            ]
+        },
+        {
+            "moduleName": "org.slf4j:slf4j-api",
+            "moduleVersion": "2.0.20",
+            "moduleUrls": [
+                "http://www.slf4j.org"
+            ],
+            "moduleLicenses": [
+                {
+                    "moduleLicense": "MIT",
+                    "moduleLicenseUrl": "https://opensource.org/license/mit"
+                }
+            ]
+        }
+    ],
+    "importedModules": [
+        
+    ]
+}

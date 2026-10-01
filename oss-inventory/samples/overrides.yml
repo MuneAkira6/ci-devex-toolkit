@@ -1,0 +1,20 @@
+# Rulings for the samples, made by a human: one entry per dependency whose declared licenses the tool
+# cannot map by itself. The tool never guesses; an entry here is a decision with its reason and source.
+# Fields: id (<ecosystem>:<name>@<version>), licenses (SPDX ids or LicenseRef-*), reason, source, reviewed.
+
+- id: gradle:aopalliance:aopalliance@1.0
+  licenses: [LicenseRef-Public-Domain]
+  reason: >-
+    The POM declares a single license named "Public Domain", with no URL. A public-domain dedication
+    has no SPDX identifier, so it is recorded as a LicenseRef whose text is in samples/texts/.
+  source: https://repo1.maven.org/maven2/aopalliance/aopalliance/1.0/aopalliance-1.0.pom
+  reviewed: 2026-10-01
+
+- id: gradle:com.h2database:h2@2.5.252
+  licenses: [MPL-2.0, EPL-1.0]
+  reason: >-
+    The report lists three entries. One has no name and points to the project's license page, which
+    says "H2 is dual licensed and available under the MPL 2.0 (Mozilla Public License Version 2.0) or
+    under the EPL 1.0 (Eclipse Public License)". The other two entries name the same two licenses.
+  source: https://h2database.com/html/license.html
+  reviewed: 2026-10-01

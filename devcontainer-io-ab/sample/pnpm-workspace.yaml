@@ -1,0 +1,16 @@
+# The measured project is its own workspace, with its own lockfile; the toolkit's root does not list it.
+
+# The same supply-chain settings as the root.
+minimumReleaseAge: 4320
+strictDepBuilds: true
+allowBuilds: {}
+
+# A flat node_modules (no symlinked virtual store), the layout most devcontainers have.
+nodeLinker: hoisted
+
+# The store is filled on the host, which may be Windows, and installed from inside a Linux container:
+# without these lines a store filled on Windows lacks the linux-x64 packages (goal-pack/facts.md, F14).
+supportedArchitectures:
+  os: [current, linux]
+  cpu: [current, x64]
+  libc: [current, glibc]
