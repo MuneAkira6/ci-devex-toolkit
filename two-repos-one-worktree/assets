@@ -348,7 +348,13 @@ run_check() {
     printf 'search check skipped: rg not found\n'
   else
     local searched
-    searched=$(cd "$root" && rg --files --hidden | LC_ALL=C sort)
+    # --path-separator /: on Windows rg prints docs\assets\x.md, while git always writes
+    # docs/assets/x.md, and every asset would be reported as hidden from search. And Git Bash
+    # rewrites a lone "/" passed to a Windows program into its own install path (C:/Program
+    # Files/Git/); the two variables switch that off for this one command and mean nothing elsewhere.
+    searched=$(cd "$root" &&
+      MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' rg --files --hidden --path-separator / |
+      LC_ALL=C sort)
     local missing
     missing=$(
       LC_ALL=C comm -23 \

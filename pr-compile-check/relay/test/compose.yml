@@ -8,6 +8,18 @@
 #
 # UPSTREAM_USER and UPSTREAM_PASSWORD are generated per run by run.ts and reach Compose through the
 # environment. They are never written to a file.
+#
+# The proxy variables are set to empty in every container. Some Docker installations add the
+# machine's own proxy settings to every container they start (Docker Desktop did on the Windows PC
+# this was checked on, credentials included); an explicit empty value wins over that, so nothing of
+# the machine's proxy reaches a container of this test.
+x-no-proxy: &no-proxy
+  HTTP_PROXY: ''
+  HTTPS_PROXY: ''
+  NO_PROXY: ''
+  http_proxy: ''
+  https_proxy: ''
+  no_proxy: ''
 
 services:
   mock-origin:
@@ -15,6 +27,8 @@ services:
     command: ['node', '/repo/pr-compile-check/relay/test/mock-origin.ts']
     volumes:
       - ../../..:/repo:ro
+    environment:
+      <<: *no-proxy
     init: true
 
   mock-upstream:
@@ -23,6 +37,7 @@ services:
     volumes:
       - ../../..:/repo:ro
     environment:
+      <<: *no-proxy
       PORT: '3129'
       ALLOWED_HOST: mock-origin
       UPSTREAM_USER: ${UPSTREAM_USER:?the test generates this}
@@ -40,6 +55,7 @@ services:
       - ../squid.conf.template:/relay/squid.conf.template:ro
       - ../render-squid-conf.sh:/relay/render-squid-conf.sh:ro
     environment:
+      <<: *no-proxy
       UPSTREAM_HOST: mock-upstream
       UPSTREAM_PORT: '3129'
       UPSTREAM_USER: ${RELAY_UPSTREAM_USER:?the test generates this}

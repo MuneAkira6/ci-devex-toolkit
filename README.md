@@ -188,8 +188,10 @@ ok   control: with the wrong upstream credentials the request does not succeed: 
 
 ### バインドマウント対 named volume
 
-`pnpm ioab`（1 アーム 5 回、1,000 モジュール、アームは交互）の結果です。同じ計測をもう一度行い、同じ傾向に
-なることを確かめています。
+`pnpm ioab`（1 アーム 5 回、1,000 モジュール、アームは交互）を、二台の機械で回した結果です。どちらの機械でも
+同じ計測をもう一度行い、同じ傾向になることを確かめています。
+
+#### Linux（実装を行ったホスト）
 
 | 工程 | bind 中央値 (ms) | volume 中央値 (ms) | bind ÷ volume |
 |---|---:|---:|---:|
@@ -202,8 +204,37 @@ ok   control: with the wrong upstream credentials the request does not succeed: 
 on Ubuntu 20.04.6 LTS, storage driver overlay2`
 
 `build` と `first-request` は誤差の範囲で同じです。`install` は named volume のほうが約 18% 遅く、二回の
-計測のどちらでも範囲が重なりませんでした。**この差の原因は、ここでは調べていません。** 結果ファイルは
-[`devcontainer-io-ab/results/`](devcontainer-io-ab/results/) にあり、全 10 回分の生の値が入っています。
+計測のどちらでも範囲が重なりませんでした。**この差の原因は、ここでは調べていません。**
+
+#### Windows（Docker Desktop）
+
+実行の後に、作者が同じ計測器を自分の Windows PC で回したものです。
+
+| 工程 | bind 中央値 (ms) | volume 中央値 (ms) | bind ÷ volume |
+|---|---:|---:|---:|
+| install | 2821 (2717–4313) | 1396 (1159–1542) | 2.02 |
+| build | 9255 (8632–12474) | 4729 (4256–6264) | 1.96 |
+| first-request | 6291 (5841–9633) | 268 (210–297) | 23.47 |
+
+測った機械:
+`Windows_NT 10.0.26100 (x64), 14 × Intel(R) Core(TM) Ultra 5 235U, 31.4 GiB, Docker 28.5.1 on Docker
+Desktop, storage driver overlayfs`
+
+三つの工程のすべてで、バインドマウント側が遅くなりました。とくに `first-request`（サーバーが 1,000 個の
+モジュールを読み込み、最初の応答を返すまで）は 23 倍です。二回目の計測では比が 2.83・2.17・25.75 で、
+同じ傾向でした。ただし絶対値は、回によって 3 割ほど変わります。
+
+結果ファイルは [`devcontainer-io-ab/results/`](devcontainer-io-ab/results/) にあり、どちらの機械の分も全 10
+回の生の値が入っています。ファイル名の日付は UTC です（Windows の分は、日本時間では 2026-10-02 の朝に
+測りました）。
+
+### Windows での確認（実行の後）
+
+作者の Windows PC（Windows 11、Git Bash、Node v24.15.0、Docker Desktop 28.5.1）でも、新しく展開した作業ツリーで
+次を確かめました。`pnpm i && pnpm test`（143 件成功）、`pnpm lint`、`pnpm typecheck`、サンプル一式の一覧
+（上と同じ 56 件）、`pnpm workflow:check`、`pnpm shellcheck`、`pnpm actionlint`、`pnpm assets:selftest`
+（`11 passed, 0 failed`。`rg` は VS Code に同梱のものを `PATH` に置きました）、`pnpm relay:test`
+（`7 passed, 0 failed`）。この確認で見つかった不具合と、その直し方は「作り方」に書きました。
 
 ## 制約・既知の限界
 
@@ -217,15 +248,17 @@ on Ubuntu 20.04.6 LTS, storage driver overlay2`
 - **Linux では、named volume に移す利点は出ませんでした。** このホストでの計測では `build` と
   `first-request` は誤差の範囲で同じ、`install` はむしろバインドマウントのほうが速いという結果です。
   原因はここでは調べていません。
-- **Windows（Docker Desktop）では事情が違います。** 作者が別途、300 モジュールの試作スクリプトで測った
-  ところでは、バインドマウント側が目に見えて遅く、TypeScript 7 の native な実行ファイルはバインドマウント上で
-  置き換えに失敗しました。また、Windows で埋めた pnpm のストアには linux 向けのパッケージが入らないため、
-  サンプルは `supportedArchitectures` を指定しています。これらは**作者の計測**であって、このリポジトリの
-  計測器の出力ではありません。この計測器を Windows で回すのは作者の次の作業です。
+- **Windows（Docker Desktop）では、named volume に移す効果がはっきり出ました**（「結果」の表）。ただし、測ったのは
+  作者の PC 一台です。また、実行の前に作者が試作スクリプトで確かめたところ、TypeScript 7 の native な実行ファイルは
+  バインドマウント上で置き換えに失敗しました。そのため、サンプルは TypeScript 6.0.3 でビルドします。Windows で
+  埋めた pnpm のストアには linux 向けのパッケージが入らないため、サンプルは `supportedArchitectures` も指定して
+  います（[`goal-pack/facts.md`](goal-pack/facts.md) の F14）。
+- **`assets` の自己テストには `rg` が要ります。** 検索の確認を実際に通す二つのケースは、`PATH` に `rg` が無いと
+  理由を書いて失敗します。
 - **`assets check` は、名前に引用符そのものや改行が入ったファイルをまだ正しく扱えません。** git は
   `core.quotePath=false` でも、そうした名前を引用符で囲んで出力するためです。日本語などの非 ASCII 名は
   扱えます。
-- このリポジトリの数字はすべてこのホストのものです。別の機械で測れば別の数字になります。
+- このリポジトリの数字は、記載した二台の機械のものです。別の機械で測れば別の数字になります。
 
 ## 作り方
 
@@ -237,6 +270,28 @@ on Ubuntu 20.04.6 LTS, storage driver overlay2`
 - [`goal-pack/SCOPE.md`](goal-pack/SCOPE.md) — 契約（AS-BUILT）
 - [`goal-pack/facts.md`](goal-pack/facts.md) — 測定したことと、そのコマンドと出力
 - [`goal-pack/PROGRESS.md`](goal-pack/PROGRESS.md) — 受け入れ条件と、その判定と証拠
+
+### 実行の後に人が行ったこと
+
+実行が終わったあと、作者が次のことをしました。詳細は [`goal-pack/SCOPE.md`](goal-pack/SCOPE.md) の
+"Changes after the run" と、[`goal-pack/facts.md`](goal-pack/facts.md) の F27〜F30 にあります。
+
+- 実装を行ったホストで、新しく展開した作業ツリーから全コマンドを流し直しました。
+- sbt と Gradle のレポートを、同梱のサンプルから作り直しました。11 ファイルすべてが同梱のものとバイト単位で
+  一致し、できたてのレポートでの一覧も終了コード 0 でした。
+- 実行環境では試せなかった Windows で確かめ、Linux では現れない不具合を四つ見つけて直しました。どれも、
+  直す前に赤くなることを確かめてから直しています。
+  1. 中継プロキシの設定を作るスクリプトが、`&` を含むパスワードを壊していました。bash 5.2 からは、
+     `${var//pattern/replacement}` の置換文字列の中で引用符の外にある `&` が「一致した文字列」を表します。
+     中継のイメージの bash は 5.2 です。実装を行ったホストの bash は 5.0 だったので、実行中のテストでは
+     見えませんでした。置換文字列を引用符で囲み、中継の試験のパスワードに `&` を入れました。
+  2. Windows では `rg` がパスの区切りに `\` を使うため、`assets check` が正しい配置でもすべての資産を
+     「検索から消えている」と報告していました。
+  3. 自己テストが `rg` を外すために使っていた `PATH`（`/usr/bin:/bin`）では、Git Bash だと git まで消えます。
+     一方、ubuntu-24.04 では apt の `rg` が `/usr/bin` に入るので、`rg` が消えません（CI で失敗するところでした）。
+  4. Docker Desktop が、PC のプロキシ設定（資格情報を含む）をすべてのコンテナに渡していました。Compose
+     ファイルすべてで、プロキシの変数を空にしています。
+- 実行が記録した、このリポジトリと無関係なコンテナの名前を伏せました。
 
 公開前の確認事項は [`PUBLISHING.md`](PUBLISHING.md) にあります。
 

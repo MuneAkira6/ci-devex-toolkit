@@ -52,8 +52,12 @@ describe('the render script fills the template in', () => {
       'cache_peer proxy.example.invalid parent 8080 0 no-query default login=dummy-user:dummy-password',
     )
     expect(rendered).toContain('never_direct allow all')
-    // eslint-disable-next-line no-bitwise -- the permission bits are what the test is about
-    expect((statSync(result.out).mode & 0o777).toString(8)).toBe('600')
+    // NTFS has no POSIX permission bits: under Git Bash the file reads back as 666 whatever the
+    // script's umask says. The script really runs inside the Linux relay container, where it is 0600.
+    if (process.platform !== 'win32') {
+      // eslint-disable-next-line no-bitwise -- the permission bits are what the test is about
+      expect((statSync(result.out).mode & 0o777).toString(8)).toBe('600')
+    }
   })
 
   it('never prints the rendered file or any value', () => {

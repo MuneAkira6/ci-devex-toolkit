@@ -47,14 +47,17 @@ case $UPSTREAM_PORT in
 esac
 
 # Substituted in bash, never with sed: a password may hold any character a sed script would treat
-# as syntax, and a bash replacement takes the value literally.
+# as syntax. The replacements are quoted, and that matters: since bash 5.2 (the squid image's bash)
+# an unquoted `&` in the replacement of ${var//pattern/replacement} stands for the matched text, so
+# a password holding one would be rendered with the placeholder spliced into it. Quoted, the value
+# is taken literally on every bash version.
 umask 077
 : >"$output" || die "cannot write $output"
 while IFS= read -r line || [ -n "$line" ]; do
-  line=${line//@UPSTREAM_HOST@/$UPSTREAM_HOST}
-  line=${line//@UPSTREAM_PORT@/$UPSTREAM_PORT}
-  line=${line//@UPSTREAM_USER@/$UPSTREAM_USER}
-  line=${line//@UPSTREAM_PASSWORD@/$UPSTREAM_PASSWORD}
+  line=${line//@UPSTREAM_HOST@/"$UPSTREAM_HOST"}
+  line=${line//@UPSTREAM_PORT@/"$UPSTREAM_PORT"}
+  line=${line//@UPSTREAM_USER@/"$UPSTREAM_USER"}
+  line=${line//@UPSTREAM_PASSWORD@/"$UPSTREAM_PASSWORD"}
   printf '%s\n' "$line" >>"$output"
 done <"$template"
 

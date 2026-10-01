@@ -1075,3 +1075,162 @@ wall clock: 58 s per full measurement
 - Decisions that depend on it: `devcontainer-io-ab/results/2026-10-01-linux-x64.{json,md}`; the
   README's 「結果」 and 「制約・既知の限界」, which must say what was measured rather than repeat
   "the arms do not differ"; PROGRESS.md AC-29 and AC-30.
+
+---
+
+F27–F30 were measured by the author on 2026-10-02, after the run had answered DONE, while verifying it
+on the Windows PC and again on the host. They led to the changes listed under "Changes after the run"
+in SCOPE.md.
+
+### F27: Since bash 5.2 an unquoted `&` in a `${var//pattern/replacement}` replacement stands for the match; the squid image's bash is 5.2
+
+- Measured on: 2026-10-02 / last re-measured: 2026-10-02
+- Measured by: the author, after the run: in Git Bash on the Windows PC, on the host, and inside the
+  pinned squid image
+- Commands (`patsub.sh` is the first three lines below; it was run with `bash patsub.sh` in Git Bash,
+  with `bash -s` on the host, and with `docker run --rm -i --entrypoint bash ubuntu/squid@sha256:8a3b… -s`):
+
+```
+v='a&b$c/d\e*f`g|h'; line='login=u:@P@ end'
+q=${line//@P@/"$v"}; u=${line//@P@/$v}
+printf 'bash %s | quoted: %s | unquoted: %s\n' "$BASH_VERSION" "$q" "$u"
+docker run --rm --entrypoint bash ubuntu/squid@sha256:8a3baed477e2c282ab8aa5edad442f69873246964f225c5c2ae8364b6610963c -c "bash --version | head -n 1; shopt patsub_replacement"
+```
+
+- Output:
+
+```
+bash 5.2.37(1)-release | quoted: login=u:a&b$c/d\e*f`g|h end | unquoted: login=u:a@P@b$c/d\e*f`g|h end
+bash 5.0.17(1)-release | quoted: login=u:a&b$c/d\e*f`g|h end | unquoted: login=u:a&b$c/d\e*f`g|h end
+bash 5.2.21(1)-release | quoted: login=u:a&b$c/d\e*f`g|h end | unquoted: login=u:a@P@b$c/d\e*f`g|h end
+GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)
+patsub_replacement	on
+```
+
+- How it was found: under Git Bash, `pnpm test` failed in
+  `pr-compile-check/test/render-squid-conf.test.ts` ("takes a password with shell and sed metacharacters
+  literally"): the rendered file held ``login=dummy-user:a@UPSTREAM_PASSWORD@b$c/d\e*f`g|h``. On the host
+  the same test passes, because its bash is 5.0.
+- The control, on the host: the relay test with passwords that carry an `&` and the render script as
+  the run left it (unquoted replacements). Every request through the relay reached the mock upstream
+  with the wrong credentials, and the relay never became ready:
+
+```
+mock-upstream-1  | {"service":"mock-upstream","event":"request","method":"GET","target":"http://mock-origin/","credentialsMatched":false,"outcome":"407"}
+0 passed, 0 failed
+(exit 1)
+```
+
+  With the replacements quoted, the same test printed `7 passed, 0 failed` twice on the host and once on
+  the Windows PC.
+- What follows: the render script's comment "a bash replacement takes the value literally" was true
+  only of the bash of the host that built it. In the relay container, which runs the script under bash
+  5.2, a real password holding an `&` would have been rendered with the placeholder spliced into it, and
+  the relay would have failed every request with a 407. The replacements are now quoted, and the relay
+  test's passwords carry an `&`, so the case runs under the image's own bash.
+- Decisions that depend on it: `pr-compile-check/relay/render-squid-conf.sh`;
+  `pr-compile-check/relay/test/run.ts`.
+
+### F28: On Windows, rg prints `\` between path components, and Git Bash rewrites a lone `/` argument
+
+- Measured on: 2026-10-02 / last re-measured: 2026-10-02
+- Measured by: the author, after the run, in Git Bash on the Windows PC, with the ripgrep that ships
+  with VS Code (`ripgrep 15.0.0 (rev 3a612f88b8)`) put first on `PATH`
+- Commands (in a product repository with `src/app.txt` and one asset, `docs/assets/spec.md`):
+
+```
+rg --files --hidden | od -c | head -n 3
+rg --files --hidden --path-separator /
+```
+
+- Output:
+
+```
+0000000   .   i   g   n   o   r   e  \n   s   r   c   \   a   p   p   .
+0000020   t   x   t  \n   d   o   c   s   \   a   s   s   e   t   s   \
+0000040   s   p   e   c   .   m   d  \n   .   g   i   t   \   i   n   d
+rg: error parsing flag --path-separator: A path separator must be exactly one byte, but the given separator is 21 bytes: C:/Program Files/Git/
+In some shells on Windows '/' is automatically expanded. Use '//' instead.
+```
+
+- What follows: `assets check` compares rg's list with git's, and git always writes `/`; so on Windows
+  every asset was reported `hidden-from-search` on a correct layout (`pnpm assets:selftest`:
+  `8 passed, 3 failed`). The check now runs `rg --files --hidden --path-separator /` with
+  `MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'` for that one command, which Git Bash honours and
+  everything else ignores. The self-test's third failure was its own: the PATH it used to take rg away,
+  `/usr/bin:/bin`, also takes git away in Git Bash (git lives in `/mingw64/bin` there), and on
+  ubuntu-24.04 it would keep rg, which apt installs into `/usr/bin`. The self-test now builds a PATH
+  without rg from the PATH it runs under. Afterwards: `11 passed, 0 failed` in Git Bash with rg on
+  `PATH`; without rg, the two cases that need it fail with `rg is not on PATH, so the search check
+  cannot be exercised`, as designed.
+- Decisions that depend on it: `two-repos-one-worktree/assets`; `two-repos-one-worktree/test/selftest.sh`.
+
+### F29: Docker Desktop on the Windows PC hands the machine's proxy settings to every container; an explicit empty value overrides them
+
+- Measured on: 2026-10-02 / last re-measured: 2026-10-02
+- Measured by: the author, after the run, on the Windows PC (Docker Desktop 28.5.1). The values were
+  never printed; only counts.
+- Commands:
+
+```
+docker run --rm alpine@sha256:28bd… sh -c 'env | grep -ci "_proxy="'
+docker run --rm alpine@sha256:28bd… sh -c 'env | grep -i "_proxy=." | wc -l'
+docker run --rm -e HTTP_PROXY= -e HTTPS_PROXY= -e NO_PROXY= -e http_proxy= -e https_proxy= -e no_proxy= alpine@sha256:28bd… sh -c 'env | grep -i "_proxy=." | wc -l'
+docker compose -p ci-devex-envprobe -f <a file whose service sets the six to ''> run --rm t
+```
+
+- Output:
+
+```
+6
+6
+0
+0
+```
+
+- How it was found: on the Windows PC the relay test printed
+  `FAIL no container of the run has a proxy variable in its environment: relay: http_proxy, relay: HTTPS_PROXY, …`
+  for all three containers (`6 passed, 1 failed`). The machine's proxy URL carries credentials, so they
+  had reached the test's containers. On the host no container gets them (F7), which is why the run saw
+  this check pass.
+- What follows: every Compose file of the repository (the relay template, the relay test, both A/B
+  arms) sets the six variables to empty, and the relay test counts a proxy variable only when it holds
+  a value. Afterwards: `ok   no container of the run has a proxy variable in its environment: none in
+  relay, mock-upstream, mock-origin`, `7 passed, 0 failed`.
+- Decisions that depend on it: the four Compose files; `pr-compile-check/relay/test/run.ts`.
+
+### F30: After the run, the JVM reports regenerated from the committed samples are byte-identical to the fixtures, and the inventory over them exits 0
+
+- Measured on: 2026-10-02 / last re-measured: 2026-10-02
+- Measured by: the author, after the run, on the host, through the throwaway relay of F12, from the
+  samples exactly as committed
+- Commands:
+
+```
+gradle --no-daemon -q generateLicenseReport     # in a copy of oss-inventory/samples/gradle-app
+sbt -batch dumpLicenseReport                     # in a copy of oss-inventory/samples/sbt-app
+sha256sum <the eleven report files>
+pnpm inventory -- --gradle <fresh>/gradle/index.json --sbt <fresh>/sbt/acme-tasks-api-licenses.csv --overrides oss-inventory/samples/overrides.yml --texts oss-inventory/samples/texts --out out/inventory-jvm
+```
+
+- Output (the checksums of `index.json` and the CSV shown; the other nine match
+  `oss-inventory/fixtures/PROVENANCE.md` too):
+
+```
+6f2d879fbba3355106942bdd8c7030d585524c210ccd244550a8daa2d479fcbe  ./gradle/index.json
+44952c7b1a81260bf57c3e4a70f2574bf33d3367f1015762702a9760e200d160  ./sbt/acme-tasks-api-licenses.csv
+Apache-2.0: 13
+BSD-2-Clause: 1
+EPL-1.0: 1
+EPL-2.0: 2
+LGPL-2.1-only: 4
+LicenseRef-Public-Domain: 1
+MIT: 11
+MPL-2.0: 1
+31 dependencies
+(exit 0)
+```
+
+- What follows: what the CI's `jvm-reports` job does was done once by hand, with the same result as
+  the fixtures. The job itself has still not run; it will on GitHub's runners.
+- Decisions that depend on it: README, 「結果」 and 「制約・既知の限界」.

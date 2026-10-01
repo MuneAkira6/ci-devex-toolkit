@@ -4,7 +4,8 @@
 rewritten here in G5 to say what was actually built. The frozen text is in git history; every place
 where the build differs from it is marked **[AS-BUILT]** below, with its reason and the fact that
 forced it. Nothing was quietly widened: each of these is a question the frozen wording left open,
-not a requirement that was dropped.
+not a requirement that was dropped. What a human changed after the run is listed in "Changes after the
+run" at the end.
 
 **The twelve differences, in one list.**
 
@@ -447,3 +448,53 @@ README's links, that every image and action is still pinned).
 Running sbt or Gradle in this environment; a real upstream proxy; a real self-hosted runner;
 publishing anything; Docker on Windows during the run (the author's step afterwards); other
 ecosystems (Maven, pip, Cargo).
+
+## Changes after the run
+
+Made by a human on 2026-10-02, after the bus had answered DONE; not reviewed by the bus. The
+measurements behind them are facts F27–F30.
+
+1. **Redaction.** The run recorded the name and the image of a container on the host that has nothing
+   to do with this repository (another squid, on port 3128). Both are replaced by `<host-squid>` and
+   `<its image>` in PROGRESS.md, facts.md, BUS-LOG.md, BUS-REVIEWS.md and BUS-MEMORY.md; nothing else
+   in those files changed.
+2. **Verified again from a fresh tree on the run's host.** From a `git archive` of the run's commit:
+   `pnpm i && pnpm test` (`Tests  143 passed (143)`, twice), `pnpm lint` (43 files), `pnpm typecheck`,
+   the full sample inventory twice (exit 0, 56 dependencies, the two output trees identical), the
+   toolkit's own inventory (exit 0), `pnpm workflow:check` (R1–R9 ok), `pnpm actionlint`, `pnpm
+   shellcheck`, `pnpm assets:selftest` with gawk and with mawk (`11 passed, 0 failed`), `pnpm
+   relay:test` (`7 passed, 0 failed`) and an A/B smoke run; afterwards no Docker object of the
+   repository and no listener on 18440–18449.
+3. **The JVM reports regenerated** from the committed samples, on the host, through a throwaway relay:
+   all eleven files byte-identical to the fixtures, and the inventory over the fresh reports exits 0
+   with 31 dependencies (F30). This is what the CI's `jvm-reports` job does; the job itself has not run
+   yet.
+4. **Windows, where the run could not go, showed four defects that Linux cannot show.** All fixed, each
+   seen red before the fix and green after:
+   - **The relay's render script corrupted a password holding `&`.** Since bash 5.2 an unquoted `&` in
+     the replacement of `${var//pattern/replacement}` stands for the matched text, and the squid image
+     runs the script under bash 5.2.21 (F27). The run's host has bash 5.0, where the unit test passed.
+     The replacements are quoted now; the relay test's passwords carry an `&`, so the case runs under
+     the image's own bash (with the old script: every request 407, the relay never ready; with the
+     fix: `7 passed, 0 failed`).
+   - **`assets check` reported every asset as hidden from search on Windows**: rg prints `\` there, and
+     Git Bash rewrites a lone `/` passed to a Windows program (F28). rg is now called with
+     `--path-separator /`, with Git Bash's path conversion switched off for that one command.
+   - **The self-test's PATH without rg** (`/usr/bin:/bin`) lost git in Git Bash, and on ubuntu-24.04,
+     where apt puts rg in `/usr/bin`, it would have kept rg, so the CI's `assets` job would have
+     failed. The self-test now builds that PATH from the PATH it runs under (F28).
+   - **Docker Desktop handed the machine's proxy settings, credentials included, to every container**
+     (F29). Every Compose file now sets the six proxy variables to empty, and the relay test counts a
+     proxy variable only when it holds a value.
+
+   And one test adjusted, not a defect: the render test's `0600` assertion is skipped on Windows,
+   where NTFS has no POSIX permission bits; the script runs inside the Linux container.
+5. **The A/B on Windows.** `pnpm ioab` with the defaults on the author's Windows PC (Docker Desktop
+   28.5.1): `devcontainer-io-ab/results/2026-10-01-win32-x64.{json,md}` (the harness names files by the
+   UTC date; it was 2026-10-02 in Japan). A second full measurement into a temporary directory gave the
+   same picture. The README's 「結果」 and 「制約・既知の限界」 and the tool's README now carry it.
+6. **Verified on Windows** (Windows 11, Git Bash, Node v24.15.0, from a fresh tree): `pnpm i && pnpm
+   test` (`143 passed`), `pnpm lint`, `pnpm typecheck`, the sample inventory (the same 56 dependencies),
+   `pnpm workflow:check`, `pnpm shellcheck`, `pnpm actionlint`, `pnpm assets:selftest` with the ripgrep
+   that ships with VS Code on `PATH` (`11 passed, 0 failed`) and `pnpm relay:test` (`7 passed, 0
+   failed`).

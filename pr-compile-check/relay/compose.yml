@@ -5,7 +5,19 @@
 # configuration is rendered at start from squid.conf.template and the environment, inside the
 # container: the rendered file holds the upstream password, so it never exists on the host and
 # never reaches an image layer.
+#
+# The proxy variables are set to empty: some Docker installations add the machine's own proxy
+# settings to every container they start, credentials included, and the relay needs none of them —
+# it knows its upstream from UPSTREAM_* alone.
 name: pr-compile-check-relay
+
+x-no-proxy: &no-proxy
+  HTTP_PROXY: ''
+  HTTPS_PROXY: ''
+  NO_PROXY: ''
+  http_proxy: ''
+  https_proxy: ''
+  no_proxy: ''
 
 services:
   relay:
@@ -14,6 +26,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      <<: *no-proxy
     volumes:
       - ./squid.conf.template:/relay/squid.conf.template:ro
       - ./render-squid-conf.sh:/relay/render-squid-conf.sh:ro

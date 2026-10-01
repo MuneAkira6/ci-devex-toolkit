@@ -7,6 +7,16 @@
 # The only difference from compose.volume.yml is the volumes block (and the project name).
 name: ci-devex-ioab-bind
 
+# No proxy either: with network_mode none it could not be used, and some Docker installations add
+# the machine's proxy settings (credentials included) to every container unless told otherwise.
+x-no-proxy: &no-proxy
+  HTTP_PROXY: ''
+  HTTPS_PROXY: ''
+  NO_PROXY: ''
+  http_proxy: ''
+  https_proxy: ''
+  no_proxy: ''
+
 services:
   app:
     image: ci-devex-ioab:local
@@ -16,6 +26,7 @@ services:
     init: true
     command: ['sleep', 'infinity']
     environment:
+      <<: *no-proxy
       CI: 'true'
       IOAB_STORE: /w/.store
       IOAB_CACHE: /w/.cache

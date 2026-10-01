@@ -118,9 +118,42 @@ assets_run() { # assets_run <args...> — in FIX_PRODUCT, with FIX_GITDIR
   STATUS=$?
 }
 
+# A PATH with rg taken out and everything else kept. It is built from the PATH the test runs under,
+# not written down: PATH='/usr/bin:/bin' keeps rg on ubuntu-24.04, where ripgrep from apt sits in
+# /usr/bin, and loses git in Git Bash, where git lives in /mingw64/bin. A directory that holds rg is
+# replaced by a shadow directory with a wrapper for every other program in it (wrappers rather than
+# symlinks, as for awk above), so that nothing else goes missing with it.
+NO_RG_PATH=''
+no_rg_path() {
+  local -a parts
+  local dir out='' shadow n=0 f name
+  IFS=: read -r -a parts <<<"$PATH"
+  for dir in "${parts[@]}"; do
+    [ -n "$dir" ] && [ -d "$dir" ] || continue
+    if [ -e "$dir/rg" ] || [ -e "$dir/rg.exe" ]; then
+      n=$((n + 1))
+      shadow="$WORK/no rg $n"
+      mkdir -p -- "$shadow" || return 1
+      for f in "$dir"/*; do
+        name=${f##*/}
+        case $name in rg | rg.exe) continue ;; esac
+        [ -f "$f" ] && [ -x "$f" ] || continue
+        printf '#!/bin/sh
+exec "%s" "$@"
+' "$f" >"$shadow/$name" || return 1
+      done
+      chmod +x -- "$shadow"/* 2>/dev/null
+      dir=$shadow
+    fi
+    out=${out:+$out:}$dir
+  done
+  printf '%s
+' "$out"
+}
+
 assets_run_without_rg() { # the same, with a PATH that has no rg on it
   OUT=$(cd -- "$FIX_PRODUCT" &&
-    PATH='/usr/bin:/bin' ASSETS_GIT_DIR="$FIX_GITDIR" bash "$ASSETS" "$@" 2>&1)
+    PATH="$NO_RG_PATH" ASSETS_GIT_DIR="$FIX_GITDIR" bash "$ASSETS" "$@" 2>&1)
   STATUS=$?
 }
 
@@ -312,8 +345,16 @@ case_require_rg() {
     fail "$name" 'the fixture could not be built'
     return
   }
-  if PATH='/usr/bin:/bin' command -v rg >/dev/null 2>&1; then
-    fail "$name" 'rg is reachable from /usr/bin:/bin, so the arm cannot be exercised'
+  NO_RG_PATH=$(no_rg_path) || {
+    fail "$name" 'a PATH without rg could not be built'
+    return
+  }
+  if (PATH="$NO_RG_PATH" && command -v rg >/dev/null 2>&1); then
+    fail "$name" 'rg is still reachable, so the arm cannot be exercised'
+    return
+  fi
+  if ! (PATH="$NO_RG_PATH" && command -v git >/dev/null 2>&1); then
+    fail "$name" 'git is not reachable without rg, so the arm cannot be exercised'
     return
   fi
   assets_run_without_rg check

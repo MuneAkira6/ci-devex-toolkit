@@ -155,9 +155,18 @@ function secret(prefix: string): string {
   return `${prefix}-${randomBytes(12).toString('hex')}`
 }
 
+// The passwords carry an `&` on purpose. The render script runs under the squid image's own bash
+// (5.2), where an unquoted `&` in the replacement of `${var//pattern/replacement}` stands for the
+// matched text, so a password holding one used to be rendered with the placeholder spliced into it.
+// The render script's unit test runs under the bash of whatever machine runs the tests, and a bash
+// older than 5.2 cannot show this; here it runs under the bash that matters.
+function password(prefix: string): string {
+  return `${prefix}-${randomBytes(6).toString('hex')}&${randomBytes(6).toString('hex')}`
+}
+
 async function main(): Promise<number> {
-  const secrets: Secrets = { user: secret('relay-user'), password: secret('relay-pass') }
-  const wrong: Secrets = { user: secrets.user, password: secret('wrong-pass') }
+  const secrets: Secrets = { user: secret('relay-user'), password: password('relay-pass') }
+  const wrong: Secrets = { user: secrets.user, password: password('wrong-pass') }
 
   try {
     const up = compose(['up', '-d'], secrets, secrets)
@@ -237,13 +246,15 @@ async function main(): Promise<number> {
     report('no credential appears in the containers’ logs', leaks === 0, `${leaks} occurrence(s)`)
 
     // The host's proxy settings are never handed to a container (goal-brief.md, red line 5). Asked
-    // from inside, so that nothing the daemon might inject can go unnoticed.
+    // from inside, so that nothing the daemon might inject can go unnoticed. The Compose file sets
+    // every proxy variable to empty, because some Docker installations add the machine's own proxy
+    // settings to every container; so a variable counts here only when it holds a value.
     const proxyVariables: string[] = []
     for (const service of ['relay', 'mock-upstream', 'mock-origin']) {
       const env = compose(['exec', '-T', service, 'env'], secrets, secrets).stdout
       for (const line of env.split('\n')) {
-        const name = line.split('=')[0] ?? ''
-        if (/proxy/i.test(name)) proxyVariables.push(`${service}: ${name}`)
+        const [name = '', ...rest] = line.replace(/\r$/, '').split('=')
+        if (/proxy/i.test(name) && rest.join('=') !== '') proxyVariables.push(`${service}: ${name}`)
       }
     }
     report(
