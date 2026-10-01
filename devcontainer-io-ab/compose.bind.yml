@@ -1,0 +1,23 @@
+# Arm A — everything on the bind mount.
+#
+# node_modules, dist, the pnpm store and the metadata cache all live inside the bind-mounted
+# project directory. This is the layout a devcontainer has by default, and the one the practice
+# moved away from.
+#
+# The only difference from compose.volume.yml is the volumes block (and the project name).
+name: ci-devex-ioab-bind
+
+services:
+  app:
+    image: ci-devex-ioab:local
+    # No container of this run reaches the network (goal-pack/facts.md, F7).
+    network_mode: none
+    working_dir: /w
+    init: true
+    command: ['sleep', 'infinity']
+    environment:
+      CI: 'true'
+      IOAB_STORE: /w/.store
+      IOAB_CACHE: /w/.cache
+    volumes:
+      - ./sample:/w

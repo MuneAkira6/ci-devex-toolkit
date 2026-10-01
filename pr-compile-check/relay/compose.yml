@@ -1,0 +1,28 @@
+# The relay proxy, for the self-hosted runner's machine.
+#
+# One squid, pinned by digest, listening on the machine's loopback address only. It is started with
+# `docker compose up -d` from this directory, with a .env beside it (see .env.example). The
+# configuration is rendered at start from squid.conf.template and the environment, inside the
+# container: the rendered file holds the upstream password, so it never exists on the host and
+# never reaches an image layer.
+name: pr-compile-check-relay
+
+services:
+  relay:
+    image: ubuntu/squid@sha256:8a3baed477e2c282ab8aa5edad442f69873246964f225c5c2ae8364b6610963c
+    container_name: pr-compile-check-relay
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./squid.conf.template:/relay/squid.conf.template:ro
+      - ./render-squid-conf.sh:/relay/render-squid-conf.sh:ro
+    entrypoint: ['/bin/bash', '-c']
+    command:
+      - |
+        bash /relay/render-squid-conf.sh /relay/squid.conf.template /etc/squid/squid.conf
+        exec entrypoint.sh -f /etc/squid/squid.conf -NYC
+    # 127.0.0.1 only: a relay reachable from the network is an open proxy with someone's
+    # credentials in it.
+    ports:
+      - '127.0.0.1:${RELAY_PORT:-3128}:3128'

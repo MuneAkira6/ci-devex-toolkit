@@ -1,0 +1,60 @@
+# squid.conf.template — rendered by render-squid-conf.sh into /etc/squid/squid.conf at start.
+#
+# The relay holds the upstream credentials so that the tools behind it never have to. That is the
+# whole reason it exists: a JVM resolver cannot answer a 407 from an authenticating proxy by itself
+# (goal-pack/facts.md, F12), and handing the credentials to every build would mean putting them in
+# the workflow.
+#
+# Placeholders, substituted literally and only here:
+#   @UPSTREAM_HOST@ @UPSTREAM_PORT@ @UPSTREAM_USER@ @UPSTREAM_PASSWORD@
+#
+# The rendered file holds a password. render-squid-conf.sh writes it with mode 0600 and never
+# prints it; nothing in this repository ever contains a real value.
+
+# The relay listens inside the container. The published port is the Compose file's business, and it
+# is bound to 127.0.0.1 there: a relay reachable from the network would be an open proxy with
+# someone's credentials in it.
+http_port 3128
+
+# Anyone who can reach the port may use it. There is no second password here on purpose: the
+# machine's own loopback address is the boundary, and a second secret on the runner would only be
+# one more thing to leak.
+acl localnet src 10.0.0.0/8
+acl localnet src 172.16.0.0/12
+acl localnet src 192.168.0.0/16
+acl localnet src fc00::/7
+acl SSL_ports port 443
+acl Safe_ports port 80
+acl Safe_ports port 443
+acl CONNECT method CONNECT
+
+http_access deny !Safe_ports
+http_access deny CONNECT !SSL_ports
+http_access allow localhost
+http_access allow localnet
+http_access deny all
+
+# Everything goes to the parent, which is the only thing that knows the credentials. `never_direct`
+# makes that absolute: if the parent is unreachable the request fails rather than quietly going out
+# some other way.
+cache_peer @UPSTREAM_HOST@ parent @UPSTREAM_PORT@ 0 no-query default login=@UPSTREAM_USER@:@UPSTREAM_PASSWORD@
+never_direct allow all
+
+# A relay, not a cache. A build that is told its dependency is unchanged because a proxy cached the
+# answer is a build that cannot be reproduced.
+cache deny all
+cache_mem 0 MB
+maximum_object_size 0 KB
+
+# The image's entrypoint tails these two files to the container's stdout, so `docker compose logs`
+# shows them; squid itself drops to the user `proxy` and cannot write to /dev/stdout. They carry no
+# credential: the `squid` format logs no request header, and the upstream password appears only in
+# the rendered configuration, which nothing prints.
+access_log stdio:/var/log/squid/access.log squid
+cache_log /var/log/squid/cache.log
+logfile_rotate 0
+
+# The relay must not announce the machine it runs on.
+httpd_suppress_version_string on
+via off
+forwarded_for delete

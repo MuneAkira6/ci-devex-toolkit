@@ -1,0 +1,173 @@
+# This repository's own CI. It runs everything the run could run on the host, plus the one job the
+# host cannot do at all: regenerating the sbt and Gradle reports, which needs a JVM
+# (goal-pack/facts.md, F4 and F12).
+#
+# Every `uses:` is pinned to a commit SHA with its version as a comment, which is rule R9 of
+# pr-compile-check; pnpm comes from pnpm/action-setup and never from `corepack enable`, because
+# enabling corepack rewrites the machine's own pnpm.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: checks (lint, types, tests, the inventory)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Check the workflow template against R1-R9
+        run: pnpm workflow:check pr-compile-check/pr-compile-check.yml
+      - name: actionlint
+        run: pnpm actionlint
+      - name: shellcheck
+        run: pnpm shellcheck
+      - name: The full sample inventory
+        run: |
+          mkdir -p out
+          pnpm --filter acme-tasks-web licenses list --json --prod > out/pnpm-report.json
+          pnpm inventory -- \
+            --pnpm out/pnpm-report.json \
+            --sbt oss-inventory/fixtures/sbt/acme-tasks-api-licenses.csv \
+            --gradle oss-inventory/fixtures/gradle/index.json \
+            --overrides oss-inventory/samples/overrides.yml \
+            --texts oss-inventory/samples/texts \
+            --out out/inventory-sample
+      - name: The toolkit's own runtime dependencies
+        run: |
+          pnpm --filter ci-devex-toolkit licenses list --json --prod > out/self-report.json
+          pnpm inventory -- --pnpm out/self-report.json --out out/inventory-self
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: inventory
+          path: out/
+
+  jvm-reports:
+    name: jvm-reports (regenerate the sbt and Gradle fixtures)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          gradle-version: 9.8.0
+      - uses: sbt/setup-sbt@6158cb0903b8ceeae04f830055f3155e1b6a5ad7 # v1.5.11
+        with:
+          sbt-runner-version: 1.13.0
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Regenerate the Gradle report
+        run: gradle --no-daemon -q generateLicenseReport
+        working-directory: oss-inventory/samples/gradle-app
+      - name: Regenerate the sbt report
+        run: sbt -batch dumpLicenseReport
+        working-directory: oss-inventory/samples/sbt-app
+      - name: The inventory on the fresh reports
+        run: |
+          pnpm inventory -- \
+            --gradle oss-inventory/samples/gradle-app/build/reports/dependency-license/index.json \
+            --sbt oss-inventory/samples/sbt-app/target/license-reports/acme-tasks-api-licenses.csv \
+            --overrides oss-inventory/samples/overrides.yml \
+            --texts oss-inventory/samples/texts \
+            --out out/inventory-fresh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: inventory-fresh
+          path: out/inventory-fresh/
+
+  assets:
+    name: assets (the two-repositories self-test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      # The self-test's search check needs ripgrep; the runner does not ship it.
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ripgrep
+      - name: Self-test
+        run: pnpm assets:selftest
+
+  relay:
+    name: relay (the proxy test, with its control)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Relay test
+        run: pnpm relay:test
+
+  ioab:
+    name: ioab (a smoke run; its numbers are not results)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      # One run, fifty modules: this says the harness still works, not how fast anything is. The
+      # results in devcontainer-io-ab/results/ are measured by hand on a known machine.
+      - name: Smoke run
+        run: pnpm ioab -- --runs 1 --modules 50 --out out/ioab

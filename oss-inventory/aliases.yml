@@ -1,0 +1,52 @@
+# The alias table: license names and URLs that this tool may read as one SPDX id.
+#
+# ONE LICENSE, ONE VERSION. An entry may only be added when the name or the URL denotes exactly one
+# license and exactly one version of it — "Apache 2.0", "The MIT License". A name that does not say
+# which license or which version it means ("BSD", "GPL", "LGPL", "Apache License" with no version)
+# is never an alias: such an input stays UNKNOWN and the run fails, so that a human decides it with
+# an override that carries a reason and a source.
+#
+# An alias is a spelling, never a judgement. A dual-licensed page, a project's own license page and
+# anything else that needs reading belong in an overrides file, not here.
+#
+# Rules this file is read by (SCOPE.md, "Normalisation"):
+#   - `names` keys are compared to the declared name exactly, after trimming surrounding spaces.
+#   - `urls` keys are compared without the scheme, without a leading `www.` and without one trailing
+#     `/`, and are consulted only when the declared name is empty or null. Nothing else is stripped:
+#     `.../licenses/LICENSE-2.0` and `.../licenses/LICENSE-2.0.txt` are two different keys.
+#   - every target must be an SPDX id spdx-license-list knows, in its canonical case, or a
+#     `LicenseRef-*`.
+#
+# Each entry below names the fixture line that required it.
+
+names:
+  # oss-inventory/fixtures/gradle/index.json, com.fasterxml.jackson.core:jackson-annotations 2.22:
+  #   {"moduleLicense":"Apache License, Version 2.0", ...}
+  'Apache License, Version 2.0': Apache-2.0
+  # the same module, second entry:
+  #   {"moduleLicense":"The Apache Software License, Version 2.0", ...}
+  'The Apache Software License, Version 2.0': Apache-2.0
+  # com.google.errorprone:error_prone_annotations 2.50.0:
+  #   {"moduleLicense":"Apache 2.0", ...}
+  'Apache 2.0': Apache-2.0
+  # org.jspecify:jspecify 1.0.1, second entry:
+  #   {"moduleLicense":"The Apache License, Version 2.0", ...}
+  'The Apache License, Version 2.0': Apache-2.0
+  # com.h2database:h2 2.5.252, second entry:
+  #   {"moduleLicense":"EPL 1.0","moduleLicenseUrl":"https://opensource.org/licenses/eclipse-1.0.php"}
+  'EPL 1.0': EPL-1.0
+  # com.h2database:h2 2.5.252, third entry:
+  #   {"moduleLicense":"MPL 2.0","moduleLicenseUrl":"https://www.mozilla.org/en-US/MPL/2.0/"}
+  'MPL 2.0': MPL-2.0
+  # oss-inventory/fixtures/sbt/acme-tasks-api-licenses.csv, line 12:
+  #   MIT,MIT License (https://spdx.org/licenses/MIT.html),com.lihaoyi # ujson_3 # 4.4.3 (...),
+  'MIT License': MIT
+  # the same file, line 17:
+  #   MIT,The MIT License (https://opensource.org/licenses/MIT),org.checkerframework # ... ,
+  'The MIT License': MIT
+
+urls:
+  # oss-inventory/fixtures/gradle/index.json, org.jspecify:jspecify 1.0.1, first entry — a null name
+  # with only a URL (F10), which is why step 4 of the normalisation exists:
+  #   {"moduleLicense":null,"moduleLicenseUrl":"https://www.apache.org/licenses/LICENSE-2.0"}
+  'https://www.apache.org/licenses/LICENSE-2.0': Apache-2.0

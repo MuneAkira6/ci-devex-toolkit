@@ -1,0 +1,106 @@
+# PR compile check — a template for a repository with an sbt backend and a pnpm frontend, built on
+# a self-hosted runner by default. Copy it to .github/workflows/ in the product repository.
+#
+# The rules it must keep are R1-R9 of pr-compile-check/runbook.md; `pnpm workflow:check` enforces
+# them. Two of them shape everything else: the workflow is given `contents: read` and no secret at
+# all, and the JVM reaches the network through a relay proxy on the runner's own loopback address,
+# so that no credential has to be passed in. See pr-compile-check/relay/.
+#
+# `main` below is the default branch of the repository this is copied into; rename it if yours
+# differs.
+name: PR compile check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Which runner to build on. The self-hosted one is the normal choice; pick the
+          GitHub-hosted one when the self-hosted machine is down.
+        type: choice
+        default: self-hosted
+        options:
+          - self-hosted
+          - github-hosted
+
+# R2: the only permission any job gets. Nothing here needs to write, and a self-hosted runner is
+# worth no more trust than the token it is handed.
+permissions:
+  contents: read
+
+# R6: a second push to the same pull request cancels the first; an older run of a merged branch is
+# of no use to anybody.
+concurrency:
+  group: pr-compile-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The relay proxy runs on the self-hosted machine's loopback address and holds the upstream
+  # credentials itself, so these are system properties and nothing more (no user, no password).
+  RELAY_HOST: 127.0.0.1
+  RELAY_PORT: '3128'
+
+jobs:
+  backend:
+    name: backend (sbt stage)
+    # R4: self-hosted unless this run was dispatched by hand with the hosted choice.
+    runs-on: >-
+      ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'github-hosted')
+      && 'ubuntu-24.04'
+      || fromJSON('["self-hosted", "linux", "x64"]') }}
+    # R5: a pull request from a fork never reaches the self-hosted machine.
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository
+    # R7: a build that hangs must not hold the runner for ever.
+    timeout-minutes: 45
+    steps:
+      # R8: the checkout leaves no credential in .git/config on a machine that keeps its workspace.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: sbt/setup-sbt@6158cb0903b8ceeae04f830055f3155e1b6a5ad7 # v1.5.11
+      - name: Point the JVM at the relay when this is the self-hosted runner
+        if: runner.environment == 'self-hosted'
+        run: |
+          proxy="-Dhttp.proxyHost=${RELAY_HOST} -Dhttp.proxyPort=${RELAY_PORT}"
+          proxy="${proxy} -Dhttps.proxyHost=${RELAY_HOST} -Dhttps.proxyPort=${RELAY_PORT}"
+          proxy="${proxy} -Dhttp.nonProxyHosts=localhost|127.0.0.1"
+          echo "JAVA_TOOL_OPTIONS=${proxy}" >> "${GITHUB_ENV}"
+      # The task packaging uses, not `compile`: a build that compiles but cannot be staged is not
+      # a build that deploys.
+      - name: sbt stage
+        run: sbt -batch stage
+
+  frontend:
+    name: frontend (pnpm build)
+    runs-on: >-
+      ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'github-hosted')
+      && 'ubuntu-24.04'
+      || fromJSON('["self-hosted", "linux", "x64"]') }}
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Build
+        run: pnpm build

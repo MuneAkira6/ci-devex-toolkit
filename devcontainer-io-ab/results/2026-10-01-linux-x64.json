@@ -1,0 +1,278 @@
+{
+  "date": "2026-10-01",
+  "runsPerArm": 5,
+  "modules": 1000,
+  "machine": {
+    "osName": "Linux",
+    "platform": "linux",
+    "release": "5.4.0-216-generic",
+    "arch": "x64",
+    "cpuModel": "Intel(R) Xeon(R) E-2146G CPU @ 3.50GHz",
+    "cpuCount": 12,
+    "memoryGiB": 46.9,
+    "dockerVersion": "28.1.1",
+    "dockerOs": "Ubuntu 20.04.6 LTS",
+    "storageDriver": "overlay2"
+  },
+  "runs": [
+    {
+      "index": 1,
+      "arm": "bind",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 876,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1063,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 241,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "arm": "volume",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 1067,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1057,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 240,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "arm": "bind",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 873,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1064,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 221,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "arm": "volume",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 1079,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1083,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 222,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "arm": "bind",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 894,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1061,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 222,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "arm": "volume",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 1103,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1102,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 222,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "arm": "bind",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 894,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1060,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 221,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "arm": "volume",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 1044,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1085,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 226,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "arm": "bind",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 870,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1064,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 243,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "arm": "volume",
+      "phases": [
+        {
+          "phase": "install",
+          "ms": 1038,
+          "files": 891
+        },
+        {
+          "phase": "build",
+          "ms": 1062,
+          "files": 1003
+        },
+        {
+          "phase": "first-request",
+          "ms": 223,
+          "body": "modules=1000 total=5010524"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "install": {
+      "bind": {
+        "median": 876,
+        "min": 870,
+        "max": 894,
+        "count": 5
+      },
+      "volume": {
+        "median": 1067,
+        "min": 1038,
+        "max": 1103,
+        "count": 5
+      }
+    },
+    "build": {
+      "bind": {
+        "median": 1063,
+        "min": 1060,
+        "max": 1064,
+        "count": 5
+      },
+      "volume": {
+        "median": 1083,
+        "min": 1057,
+        "max": 1102,
+        "count": 5
+      }
+    },
+    "first-request": {
+      "bind": {
+        "median": 222,
+        "min": 221,
+        "max": 243,
+        "count": 5
+      },
+      "volume": {
+        "median": 223,
+        "min": 222,
+        "max": 240,
+        "count": 5
+      }
+    }
+  },
+  "ratios": {
+    "install": 0.82,
+    "build": 0.98,
+    "first-request": 1
+  }
+}

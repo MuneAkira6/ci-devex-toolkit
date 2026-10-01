@@ -1,0 +1,56 @@
+# The relay test's three containers. Project `ci-devex-relay-test`, started and removed by
+# `pnpm relay:test`.
+#
+# The relay is the real one: it mounts ../squid.conf.template and ../render-squid-conf.sh, not a
+# copy of them, so what the test proves is what the template does. The two mocks stand in for the
+# authenticating proxy a runner sits behind and for the host it is trying to reach; the upstream
+# forwards to the origin and to nothing else, so nothing the test does can leave this machine.
+#
+# UPSTREAM_USER and UPSTREAM_PASSWORD are generated per run by run.ts and reach Compose through the
+# environment. They are never written to a file.
+
+services:
+  mock-origin:
+    image: node@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df
+    command: ['node', '/repo/pr-compile-check/relay/test/mock-origin.ts']
+    volumes:
+      - ../../..:/repo:ro
+    init: true
+
+  mock-upstream:
+    image: node@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df
+    command: ['node', '/repo/pr-compile-check/relay/test/mock-upstream.ts']
+    volumes:
+      - ../../..:/repo:ro
+    environment:
+      PORT: '3129'
+      ALLOWED_HOST: mock-origin
+      UPSTREAM_USER: ${UPSTREAM_USER:?the test generates this}
+      UPSTREAM_PASSWORD: ${UPSTREAM_PASSWORD:?the test generates this}
+    # Published for assertion 3, the direct check: a request with no credentials must get a 407.
+    ports:
+      - '127.0.0.1:18442:3129'
+    depends_on:
+      - mock-origin
+    init: true
+
+  relay:
+    image: ubuntu/squid@sha256:8a3baed477e2c282ab8aa5edad442f69873246964f225c5c2ae8364b6610963c
+    volumes:
+      - ../squid.conf.template:/relay/squid.conf.template:ro
+      - ../render-squid-conf.sh:/relay/render-squid-conf.sh:ro
+    environment:
+      UPSTREAM_HOST: mock-upstream
+      UPSTREAM_PORT: '3129'
+      UPSTREAM_USER: ${RELAY_UPSTREAM_USER:?the test generates this}
+      UPSTREAM_PASSWORD: ${RELAY_UPSTREAM_PASSWORD:?the test generates this}
+    entrypoint: ['/bin/bash', '-c']
+    command:
+      - |
+        bash /relay/render-squid-conf.sh /relay/squid.conf.template /etc/squid/squid.conf
+        exec entrypoint.sh -f /etc/squid/squid.conf -NYC
+    ports:
+      - '127.0.0.1:18441:3128'
+    depends_on:
+      - mock-upstream
+    init: true

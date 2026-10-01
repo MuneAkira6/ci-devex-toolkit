@@ -1,0 +1,419 @@
+#!/usr/bin/env bash
+#
+# assets — lay a second, bare repository over a product repository's working tree, and keep the two
+# from overlapping.
+#
+#   assets init  --git-dir <dir> <path>...   # in the product repository's working tree
+#   assets check [--git-dir <dir>] [--require-rg]
+#   assets <git subcommand> [args...]        # git --git-dir=<dir> --work-tree=<root> <subcommand> …
+#
+# --git-dir defaults to $ASSETS_GIT_DIR. The root is the product repository's top level.
+# Exit codes: 0 all well · 1 check found violations · 3 usage or input error.
+#
+# Portability: bash 5.0 and git 2.25 (no `git init -b`, and `init.defaultBranch` is ignored there,
+# so a fresh repository is on whatever branch that git defaults to); no awk and no sed, so no
+# regular-expression interval can behave differently on mawk; every path may contain spaces.
+
+set -uo pipefail
+
+BLOCK_BEGIN='# BEGIN assets (two-repos-one-worktree) - managed block, do not edit by hand'
+BLOCK_END='# END assets (two-repos-one-worktree)'
+
+USAGE="usage:
+  assets init  --git-dir <dir> <path>...
+  assets check [--git-dir <dir>] [--require-rg]
+  assets <git subcommand> [args...]
+
+--git-dir defaults to \$ASSETS_GIT_DIR."
+
+die() { # die <exit-code> <message>...
+  local code=$1
+  shift
+  printf 'assets: %s\n' "$*" >&2
+  exit "$code"
+}
+
+usage_error() { # usage_error <message>...
+  printf 'assets: %s\n' "$*" >&2
+  printf '%s\n' "$USAGE" >&2
+  exit 3
+}
+
+product_root() {
+  local root
+  root=$(git rev-parse --show-toplevel 2>/dev/null) ||
+    usage_error 'not inside a git working tree; run this in the product repository'
+  [ -n "$root" ] || usage_error 'the product repository has no working tree'
+  printf '%s\n' "$root"
+}
+
+# The assets repository, as an absolute path, from --git-dir or $ASSETS_GIT_DIR.
+resolve_git_dir() { # resolve_git_dir <value>
+  local value=$1
+  [ -n "$value" ] || usage_error 'no assets repository: pass --git-dir <dir> or set ASSETS_GIT_DIR'
+  case $value in
+    /* | ?:[\\/]*) printf '%s\n' "$value" ;;
+    *) printf '%s\n' "$PWD/$value" ;;
+  esac
+}
+
+# An asset path is relative to the root and holds no `..`; a directory carries a trailing slash.
+normalise_path() { # normalise_path <root> <path>
+  local root=$1 path=$2 component
+  [ -n "$path" ] || usage_error 'an asset path may not be empty'
+  case $path in
+    /* | ?:[\\/]*) usage_error "asset path \"$path\" must be relative to the repository root" ;;
+  esac
+  while [ "${path#./}" != "$path" ]; do path=${path#./}; done
+  local trailing=''
+  while [ "${path%/}" != "$path" ]; do
+    path=${path%/}
+    trailing='/'
+  done
+  [ -n "$path" ] || usage_error 'an asset path may not be the repository root'
+  local rest=$path
+  while [ -n "$rest" ]; do
+    component=${rest%%/*}
+    [ "$component" != '..' ] || usage_error "asset path \"$2\" must not contain \"..\""
+    [ "$component" != '' ] || usage_error "asset path \"$2\" has an empty component"
+    if [ "$rest" = "$component" ]; then rest=''; else rest=${rest#*/}; fi
+  done
+  if [ -z "$trailing" ] && [ -d "$root/$path" ]; then trailing='/'; fi
+  printf '%s%s\n' "$path" "$trailing"
+}
+
+# --- the managed block -----------------------------------------------------------------------
+# Written and replaced in pure bash: a path may hold any character a sed or awk script would have
+# to quote, and the block must come out byte-identical when init runs again with the same paths.
+
+BLOCK_LINES=()
+
+write_block() { # write_block <file>; the body is BLOCK_LINES
+  local file=$1 line temporary found=0 inside=0
+  temporary="$file.assets.$$"
+  : >"$temporary" || die 3 "cannot write next to $file"
+  if [ -f "$file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ "$line" = "$BLOCK_BEGIN" ]; then
+        inside=1
+        found=1
+        emit_block >>"$temporary"
+        continue
+      fi
+      if [ "$line" = "$BLOCK_END" ]; then
+        inside=0
+        continue
+      fi
+      [ "$inside" -eq 1 ] || printf '%s\n' "$line" >>"$temporary"
+    done <"$file"
+  fi
+  [ "$found" -eq 1 ] || emit_block >>"$temporary"
+  mv -- "$temporary" "$file" || die 3 "cannot replace $file"
+}
+
+emit_block() {
+  local line
+  printf '%s\n' "$BLOCK_BEGIN"
+  for line in ${BLOCK_LINES+"${BLOCK_LINES[@]}"}; do printf '%s\n' "$line"; done
+  printf '%s\n' "$BLOCK_END"
+}
+
+read_block() { # read_block <file> — the block's body, one line per line
+  local file=$1 line inside=0
+  [ -f "$file" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$line" = "$BLOCK_BEGIN" ]; then
+      inside=1
+      continue
+    fi
+    if [ "$line" = "$BLOCK_END" ]; then
+      inside=0
+      continue
+    fi
+    [ "$inside" -eq 0 ] || printf '%s\n' "$line"
+  done <"$file"
+}
+
+# --- init ---------------------------------------------------------------------------------------
+
+# The assets repository's whitelist. SCOPE.md words it `/*`, a negation per asset path, `!/.ignore`;
+# git never descends into a directory `/*` excluded, so each parent of a nested path is negated and
+# its other contents re-excluded, or the leaf negation would never be reached (F21).
+whitelist_lines() { # whitelist_lines <path>...
+  local path rest head prefix done_parents='
+'
+  printf '%s\n' '/*'
+  for path in "$@"; do
+    # walk the parents of this path from the shallowest to the deepest
+    rest=${path%/}
+    prefix=''
+    while [ "${rest#*/}" != "$rest" ]; do
+      head=${rest%%/*}
+      rest=${rest#*/}
+      if [ -z "$prefix" ]; then prefix=$head; else prefix="$prefix/$head"; fi
+      case $done_parents in
+        *"
+$prefix
+"*) continue ;;
+      esac
+      done_parents="$done_parents$prefix
+"
+      printf '!/%s/\n' "$prefix"
+      # A parent that is itself an asset path keeps all of its contents.
+      if ! is_asset_path "$prefix/" "$@"; then printf '/%s/*\n' "$prefix"; fi
+    done
+    printf '!/%s\n' "$path"
+  done
+  printf '%s\n' '!/.ignore'
+}
+
+is_asset_path() { # is_asset_path <candidate> <path>...
+  local candidate=$1 path
+  shift
+  for path in "$@"; do
+    [ "$path" != "$candidate" ] || return 0
+  done
+  return 1
+}
+
+run_init() {
+  local git_dir='' root path
+  local -a paths=()
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --git-dir)
+        [ $# -ge 2 ] || usage_error '--git-dir needs a value'
+        git_dir=$2
+        shift 2
+        ;;
+      --)
+        shift
+        while [ $# -gt 0 ]; do
+          paths+=("$1")
+          shift
+        done
+        ;;
+      -*) usage_error "unknown option \"$1\" for init" ;;
+      *)
+        paths+=("$1")
+        shift
+        ;;
+    esac
+  done
+  [ ${#paths[@]} -gt 0 ] || usage_error 'init needs at least one asset path'
+  git_dir=$(resolve_git_dir "${git_dir:-${ASSETS_GIT_DIR:-}}") || exit 3
+  root=$(product_root) || exit 3
+
+  local -a assets=()
+  for path in "${paths[@]}"; do
+    assets+=("$(normalise_path "$root" "$path")") || exit 3
+  done
+
+  # 1. the bare repository
+  if [ ! -d "$git_dir" ]; then
+    git init -q --bare -- "$git_dir" ||
+      die 3 "cannot create the assets repository at $git_dir"
+  elif [ "$(git --git-dir="$git_dir" rev-parse --is-bare-repository 2>/dev/null)" != 'true' ]; then
+    die 3 "$git_dir exists and is not a bare git repository"
+  fi
+
+  # 2. its info/exclude, as a whitelist
+  mkdir -p -- "$git_dir/info" || die 3 "cannot write $git_dir/info"
+  local -a lines=()
+  while IFS= read -r path; do lines+=("$path"); done < <(whitelist_lines "${assets[@]}")
+  printf '%s\n' "${lines[@]}" >"$git_dir/info/exclude" ||
+    die 3 "cannot write $git_dir/info/exclude"
+
+  # 3. the product's exclude block — never .gitignore, so the assets stay out of its diff
+  local product_git_dir
+  product_git_dir=$(git -C "$root" rev-parse --absolute-git-dir) ||
+    die 3 'cannot find the product repository'
+  mkdir -p -- "$product_git_dir/info" || die 3 "cannot write $product_git_dir/info"
+  BLOCK_LINES=()
+  for path in "${assets[@]}"; do BLOCK_LINES+=("/$path"); done
+  BLOCK_LINES+=('/.ignore')
+  write_block "$product_git_dir/info/exclude"
+
+  # 4. the root .ignore, so that ripgrep does not hide what the exclude block hides (F22).
+  #    `.ignore` negates itself too: it belongs to the assets repository, and check 3 asks that
+  #    every file that repository tracks be listed by `rg --files --hidden`.
+  BLOCK_LINES=()
+  for path in "${assets[@]}"; do BLOCK_LINES+=("!/$path"); done
+  BLOCK_LINES+=('!/.ignore')
+  write_block "$root/.ignore"
+
+  printf 'assets: %s asset path(s) in %s\n' "${#assets[@]}" "$git_dir"
+  for path in "${assets[@]}"; do printf '  %s\n' "$path"; done
+}
+
+# --- check ----------------------------------------------------------------------------------------
+
+VIOLATIONS=0
+
+# Both repositories are read with core.quotePath=false, so that a path outside ASCII comes back as
+# the bytes on disk rather than octal-escaped and in quotes. `rg --files --hidden` prints the raw
+# path, and the two lists are compared with `comm`: without this, a Japanese file name made the
+# search check and the status check fail on a layout that was in fact correct (F23).
+product_git() { # product_git <git args...>
+  git -c core.quotePath=false -C "$root" "$@"
+}
+
+assets_git() { # assets_git <git args...>
+  git -c core.quotePath=false --git-dir="$git_dir" --work-tree="$root" "$@"
+}
+
+violation() { # violation <name> <message>...
+  local name=$1
+  shift
+  printf '%s: %s\n' "$name" "$*"
+  VIOLATIONS=$((VIOLATIONS + 1))
+}
+
+# Is <file> under one of the asset paths? A path ending in `/` is a prefix, otherwise an exact match.
+under_assets() { # under_assets <file> <asset-path>...
+  local file=$1 path
+  shift
+  for path in "$@"; do
+    case $path in
+      */) case $file in "${path}"*) return 0 ;; esac ;;
+      *) [ "$file" != "$path" ] || return 0 ;;
+    esac
+  done
+  return 1
+}
+
+run_check() {
+  local git_dir='' require_rg=0 root
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --git-dir)
+        [ $# -ge 2 ] || usage_error '--git-dir needs a value'
+        git_dir=$2
+        shift 2
+        ;;
+      --require-rg)
+        require_rg=1
+        shift
+        ;;
+      *) usage_error "unknown argument \"$1\" for check" ;;
+    esac
+  done
+  git_dir=$(resolve_git_dir "${git_dir:-${ASSETS_GIT_DIR:-}}") || exit 3
+  root=$(product_root) || exit 3
+  [ -d "$git_dir" ] || usage_error "the assets repository $git_dir does not exist; run init first"
+
+  local product_git_dir
+  product_git_dir=$(git -C "$root" rev-parse --absolute-git-dir) ||
+    die 3 'cannot find the product repository'
+
+  # the asset paths, as the product's exclude block records them
+  local -a assets=()
+  local line
+  while IFS= read -r line; do
+    case $line in
+      /.ignore) continue ;;
+      /*) assets+=("${line#/}") ;;
+    esac
+  done < <(read_block "$product_git_dir/info/exclude")
+
+  # 1. no path is tracked by both repositories
+  local both
+  both=$(
+    LC_ALL=C comm -12 \
+      <(product_git ls-files | LC_ALL=C sort) \
+      <(assets_git ls-files | LC_ALL=C sort)
+  )
+  if [ -n "$both" ]; then
+    while IFS= read -r line; do
+      violation 'tracked-by-both' "$line is tracked by the product and by the assets repository"
+    done <<<"$both"
+  fi
+
+  # 2. every asset path of the product's exclude block is negated in .ignore
+  local -a negations=()
+  while IFS= read -r line; do negations+=("$line"); done < <(read_block "$root/.ignore")
+  local path found
+  for path in ${assets+"${assets[@]}"}; do
+    found=0
+    for line in ${negations+"${negations[@]}"}; do
+      [ "$line" != "!/$path" ] || found=1
+    done
+    [ "$found" -eq 1 ] ||
+      violation 'missing-negation' "$path is excluded from the product but has no !/$path in .ignore"
+  done
+
+  # 3. every file the assets repository tracks is found by ripgrep
+  if ! command -v rg >/dev/null 2>&1; then
+    [ "$require_rg" -eq 0 ] || usage_error '--require-rg was given but rg is not on PATH'
+    printf 'search check skipped: rg not found\n'
+  else
+    local searched
+    searched=$(cd "$root" && rg --files --hidden | LC_ALL=C sort)
+    local missing
+    missing=$(
+      LC_ALL=C comm -23 \
+        <(assets_git ls-files | LC_ALL=C sort) \
+        <(printf '%s\n' "$searched")
+    )
+    if [ -n "$missing" ]; then
+      while IFS= read -r line; do
+        violation 'hidden-from-search' "$line is tracked by the assets repository but rg --files --hidden does not list it"
+      done <<<"$missing"
+    fi
+  fi
+
+  # 4. neither repository's status strays into the other's paths
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    line=${line:3}
+    if under_assets "$line" ${assets+"${assets[@]}"}; then
+      violation 'stray-status' "the product's status shows the asset path $line"
+    fi
+  done < <(product_git status --porcelain)
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    line=${line:3}
+    if ! under_assets "$line" ${assets+"${assets[@]}"}; then
+      violation 'stray-status' "the assets repository's status shows the product path $line"
+    fi
+  done < <(assets_git status --porcelain)
+
+  if [ "$VIOLATIONS" -gt 0 ]; then
+    printf 'check failed: %s violation(s)\n' "$VIOLATIONS"
+    exit 1
+  fi
+  printf 'check passed: %s asset path(s), 0 violations\n' "${#assets[@]}"
+}
+
+# --- the passthrough ------------------------------------------------------------------------------
+
+run_passthrough() {
+  local git_dir root
+  git_dir=$(resolve_git_dir "${ASSETS_GIT_DIR:-}") || exit 3
+  root=$(product_root) || exit 3
+  exec git --git-dir="$git_dir" --work-tree="$root" "$@"
+}
+
+# --- the entry point ------------------------------------------------------------------------------
+
+main() {
+  [ $# -gt 0 ] || usage_error 'no subcommand'
+  case $1 in
+    -h | --help)
+      printf '%s\n' "$USAGE"
+      exit 0
+      ;;
+    init)
+      shift
+      run_init "$@"
+      ;;
+    check)
+      shift
+      run_check "$@"
+      ;;
+    -*) usage_error "unknown option \"$1\"" ;;
+    *) run_passthrough "$@" ;;
+  esac
+}
+
+main "$@"

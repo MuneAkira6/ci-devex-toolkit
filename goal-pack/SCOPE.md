@@ -1,6 +1,33 @@
 # ci-devex-toolkit — scope and contract
 
-**Contract status: DRAFT.** Frozen in G0 (content unchanged, date added); rewritten as AS-BUILT in G5.
+**Contract status: AS-BUILT 2026-10-01.** Drafted before the run, frozen unchanged in G0, and
+rewritten here in G5 to say what was actually built. The frozen text is in git history; every place
+where the build differs from it is marked **[AS-BUILT]** below, with its reason and the fact that
+forced it. Nothing was quietly widened: each of these is a question the frozen wording left open,
+not a requirement that was dropped.
+
+**The twelve differences, in one list.**
+
+| # | Where | What the frozen contract said | What was built, and why |
+|---|---|---|---|
+| 1 | oss-inventory, `inventory.csv` `source` | the column is one of `declared`, `alias`, `override`, `unknown` | the order of precedence was not given; it is `override` > `unknown` > `alias` > `declared`, so a dependency that needed the alias table for any entry reads `alias` |
+| 2 | oss-inventory, `inventory.csv` `licenses` | the ids joined with `;`, or the pnpm expression | an UNKNOWN dependency has no ids, so the cell reads `UNKNOWN` |
+| 3 | oss-inventory, `inventory.csv` `declared` | the declared names and URLs joined with ` \| ` | a dependency whose report declares no license entry at all reads `(no license entry)` |
+| 4 | oss-inventory, the `declared` column | — | an entry with a null name and only a URL is written `(url)`, and one with neither `(no name, no URL)` |
+| 5 | two-repos-one-worktree, the assets whitelist | `/*`, then `!/<path>` per asset path, then `!/.ignore` | each parent directory of a nested path is also negated and its other contents re-excluded (`!/docs/`, `/docs/*`, `!/docs/assets/`): `/*` excludes the parent and git never descends into it, so the leaf negation is never reached and the asset is invisible to `git add` (F21) |
+| 6 | two-repos-one-worktree, the `.ignore` block | `!/<path>` for each asset path | `!/.ignore` is in the block too: `.ignore` belongs to the assets repository and the product's exclude block hides it, so without this, check 3 ("every file the assets repository tracks is listed by `rg --files --hidden`") fails on the tool's own output (F22) |
+| 7 | pr-compile-check, R5 | every job **that can run self-hosted** refuses a foreign-head pull request | R5 is checked on every job. Deciding which jobs can reach the self-hosted labels would make R5 depend on R4, and a planted R4 violation would then fail R5 as well; AC-18 asks each rule to fail alone |
+| 8 | pr-compile-check, R4 | every job's `runs-on` is an expression that gives the self-hosted labels unless dispatched with the hosted choice | checked as: the value holds `${{`, names `self-hosted`, and mentions the dispatch input R1 found. Also checked on every job, for the same reason as 7 |
+| 9 | pr-compile-check, R1 | `push` to **the default branch** | checked as `on.push.branches` being a non-empty list: a template cannot know the default branch of the repository it is copied into. The template uses `main` and says so |
+| 10 | pr-compile-check, the relay test | it prints one line per assertion, five of them | it prints seven: the contract's five, plus the credential-leak count AC-23 asks for and a check that no container has a proxy variable in its environment (goal-brief.md, red line 5) |
+| 11 | devcontainer-io-ab, emptying the volume arm | "the volumes are recreated" | only `ci-devex-ioab-node-modules` and `ci-devex-ioab-dist` are recreated per run; the store and metadata-cache volumes are preparation and survive, because a run that re-fetched them would not be measuring an offline install |
+| 12 | README 「制約・既知の限界」 | "on Linux the A/B arms do not differ (F13)" | the README says what was measured: `build` and `first-request` do not differ, `install` is about 18 % **slower on the named volume**, in two full measurements with non-overlapping ranges, cause not investigated (F26, and the Superseded box under F13) |
+
+Two smaller things that are not differences but are worth stating, because a reader will look for
+them: `assets` uses no awk at all (the contract allowed either awk without intervals or no awk), and
+`tools/shellcheck.ts` computes its file list from `git ls-files --cached --others --exclude-standard`
+rather than walking the filesystem, so the files `.gitignore` ignores — the goal-bus hooks among
+them — are not this repository's to lint.
 
 Four small tools from the author's CI and developer-experience work, each rebuilt so that a reader can
 run it and see why it is built that way:
@@ -138,7 +165,7 @@ listed as **unused** and changes nothing else. The samples' overrides are given
 
 | File | Content |
 |---|---|
-| `inventory.csv` | header `ecosystem,name,version,licenses,source,declared,homepage`; `licenses` the ids joined with `;`, or the pnpm expression; `source` one of `declared`, `alias`, `override`, `unknown`; `declared` the declared names and URLs joined with ` \| ` |
+| `inventory.csv` | header `ecosystem,name,version,licenses,source,declared,homepage`; `licenses` the ids joined with `;`, or the pnpm expression; `source` one of `declared`, `alias`, `override`, `unknown`; `declared` the declared names and URLs joined with ` \| `. **[AS-BUILT 1-4]** `source` precedence is `override` > `unknown` > `alias` > `declared`; `licenses` reads `UNKNOWN` for an UNKNOWN dependency; `declared` reads `(no license entry)` when the report declares none, `(url)` for a null-name entry and `(no name, no URL)` for an empty one |
 | `inventory.md` | a summary (license → number of dependencies), the full table, then "Failures" and "Unused overrides" (each "None" when empty) |
 | `licenses/<id>.txt` | one full text per license id used |
 | `notices/<ecosystem>/<name>@<version>/<file>` | the copied files; `:` in a Gradle name becomes `__` |
@@ -184,11 +211,16 @@ repository. An asset path is relative to the root, without `..`; a directory is 
 
 **init** (idempotent; running it again with the same paths changes nothing):
 1. creates the bare repository if it does not exist;
-2. writes its `info/exclude` as a whitelist: `/*`, then `!/<path>` for each asset path, and `!/.ignore`;
+2. writes its `info/exclude` as a whitelist: `/*`, then `!/<path>` for each asset path, and `!/.ignore`.
+   **[AS-BUILT 5]** Each parent directory of a nested path is negated and its other contents
+   re-excluded as well (`!/docs/`, `/docs/*`, `!/docs/assets/`): `/*` excludes the parent, git never
+   descends into an excluded directory, and the leaf negation is otherwise never reached (F21);
 3. writes a marked block into the product's `.git/info/exclude` — never into `.gitignore` — listing each
    asset path and `/.ignore`; the block is replaced, not appended to, on a second run;
 4. writes a marked block into `.ignore` at the root, with `!/<path>` for each asset path, so that
    ripgrep does not hide what `info/exclude` hides. `.ignore` belongs to the assets repository.
+   **[AS-BUILT 6]** The block also carries `!/.ignore`: the product's exclude block hides that file,
+   and check 3 below asks that every file the assets repository tracks be listed by `rg` (F22).
 
 **check** — exit `0` when all of these hold, `1` listing every violation, `3` on a usage error:
 1. no path is tracked by both repositories;
@@ -224,11 +256,11 @@ the network through the relay on `127.0.0.1` (system properties only; no credent
 
 | Id | Rule |
 |---|---|
-| R1 | triggers: `pull_request`, `push` to the default branch, and `workflow_dispatch` with an input that picks the runner, default self-hosted |
+| R1 | triggers: `pull_request`, `push` to the default branch, and `workflow_dispatch` with an input that picks the runner, default self-hosted. **[AS-BUILT 9]** "the default branch" is checked as `on.push.branches` being a non-empty list: a template cannot know the branch name of the repository it is copied into |
 | R2 | top-level `permissions` is exactly `contents: read`; no job widens it |
 | R3 | no `secrets.` anywhere, and no `pull_request_target` trigger |
-| R4 | every job's `runs-on` is an expression that gives the self-hosted labels unless dispatched with the hosted choice |
-| R5 | every job that can run self-hosted refuses a pull request whose head repository is not this repository |
+| R4 | every job's `runs-on` is an expression that gives the self-hosted labels unless dispatched with the hosted choice. **[AS-BUILT 8]** checked as: the value holds `${{`, names `self-hosted` and mentions R1's dispatch input; checked on every job |
+| R5 | every job that can run self-hosted refuses a pull request whose head repository is not this repository. **[AS-BUILT 7]** checked on **every** job: deciding which jobs can reach the self-hosted labels would make R5 depend on R4, and one planted violation would then fail two rules |
 | R6 | `concurrency` grouped by the pull request (or the ref) with `cancel-in-progress: true` |
 | R7 | every job has `timeout-minutes` |
 | R8 | every `actions/checkout` step sets `persist-credentials: false` |
@@ -273,7 +305,9 @@ The runner asserts, from the host:
    the mock logged a rejection;
 
 and removes the project with its volumes and network at the end, also on failure. It prints one line per
-assertion and exits 0 only if all pass. The dummy credentials exist only in the environment of that one
+assertion and exits 0 only if all pass. **[AS-BUILT 10]** It reports seven lines, not five: the five
+above, plus the count of the dummy password in `docker compose logs` (0) and a check that no container
+of the run has a proxy variable in its environment. The dummy credentials exist only in the environment of that one
 run; they are never written to a file in the repository. The test never touches a real proxy.
 
 ### The runbook — `pr-compile-check/runbook.md` (Japanese)
@@ -313,7 +347,10 @@ Defaults: 5 runs per arm, 1,000 generated modules, `devcontainer-io-ab/results`.
   (`CI=true pnpm install --offline --frozen-lockfile` with the store and the cache, F13), `build`
   (`tsc -p .`), `first-request` (start the server, poll `GET /` until 200, check the body). Before each
   run the arm's `node_modules` and `dist` are emptied (bind: through a container, since the files belong
-  to root, F13; volume: the volumes are recreated). The arms alternate: bind, volume, bind, volume, …
+  to root, F13; volume: the volumes are recreated). **[AS-BUILT 11]** Only the `node_modules` and
+  `dist` volumes are recreated; the store and metadata-cache volumes are preparation and survive,
+  because a run that re-fetched them would not be measuring an offline install.
+  The arms alternate: bind, volume, bind, volume, …
 - **Output**: `results/<YYYY-MM-DD>-<platform>.json` (every run's phases and the machine: OS and
   release, CPU model and count, memory, Docker version and OS, storage driver, the module and file
   counts) and `.md` (per arm and phase: median, min and max in milliseconds; the ratio bind ÷ volume of
@@ -367,7 +404,10 @@ apply to it.
   case study; link it, do not copy them.
 - 「制約・既知の限界」 includes: sbt-license-report's one license per dependency (F11); the jk1 renderer
   setting (F10); the JVM reports are not produced in this environment (F12) and are regenerated by the CI;
-  on Linux the A/B arms do not differ (F13); the Windows traps the author measured (F14), as the
+  the A/B as measured here — **[AS-BUILT 12]** `build` and `first-request` do not differ, `install` is
+  about 18 % slower on the named volume, in two full measurements with non-overlapping ranges, cause not
+  investigated (F26, and the Superseded box under F13), which replaces the frozen wording "on Linux the
+  A/B arms do not differ"; the Windows traps the author measured (F14), as the
   author's measurements.
 - 「作り方」 says the repository was built by an unattended goal-bus run and links `goal-pack/`.
 

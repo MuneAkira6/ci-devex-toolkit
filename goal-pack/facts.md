@@ -483,6 +483,15 @@ fetch 7 s; store 62M, 2116 files
   and are removed through a container.
 - Decisions that depend on it: SCOPE.md, devcontainer-io-ab; README, 「結果」 and 「制約」.
 
+> **Superseded in part, 2026-10-01 (the implementation run, G4 — F26).** The entry's text stays as
+> it was. Measured with this repository's own harness, 5 runs per arm at 1,000 modules on
+> TypeScript 6.0.3, the `build` and `first-request` phases do come out within noise (ratios 0.98
+> and 1.00), but `install` does **not**: the bind arm is consistently the faster of the two
+> (medians 876 ms against 1067 ms, ratio 0.82, with the two ranges not overlapping). F13's
+> conclusion — that moving these four directories onto named volumes buys nothing on Linux —
+> stands and is if anything stronger; the words "within noise" are too weak for the install phase.
+> F13's own numbers were a 300-module probe on TypeScript 7, not this harness's output.
+
 ### F14: On Windows (Docker Desktop) the arms differ, and three traps appear that Linux never shows
 
 - Measured on: 2026-10-01 / last re-measured: 2026-10-01
@@ -613,3 +622,456 @@ There is a license FAQ for both the MPL and the EPL.
 
 - What follows: the two rulings in `oss-inventory/samples/overrides.yml` rest on these pages.
 - Decisions that depend on it: `oss-inventory/samples/overrides.yml`.
+
+### F18: The run's own toolchain re-measurement in G0 confirms F2–F6, F10 and F11; `jq` 1.6 is on the host and Biome covers three files so far
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G0), on the host, in this repository
+- Commands:
+
+```
+node --version; pnpm --version; bash --version | head -n 1; git --version
+readlink -f "$(command -v awk)"; awk --version 2>&1 | head -n 1; command -v mawk; mawk -W version 2>&1 | head -n 1
+rg --version | head -n 1; docker version --format '{{.Server.Version}}'; jq --version
+jq '.dependencies | length' oss-inventory/fixtures/gradle/index.json oss-inventory/fixtures/gradle-single/index.json
+awk 'NR>1 && NF' oss-inventory/fixtures/sbt/acme-tasks-api-licenses.csv | wc -l
+find oss-inventory/fixtures/gradle -type f | wc -l
+( cd oss-inventory/fixtures && sha256sum gradle/index.json gradle-single/index.json sbt/acme-tasks-api-licenses.csv )
+./node_modules/.bin/biome check --verbose . 2>&1 | sed -n '/Files processed/,/Files fixed/p'
+```
+
+- Output:
+
+```
+v24.19.0
+11.28.0
+GNU bash, version 5.0.17(1)-release (x86_64-pc-linux-gnu)
+git version 2.25.1
+/usr/bin/gawk
+GNU Awk 5.0.1, API: 2.0 (GNU MPFR 4.0.2, GNU MP 6.2.0)
+/usr/bin/mawk
+mawk 1.3.4 20200120
+ripgrep 15.2.0 (rev e89fff89ac)
+28.1.1
+jq-1.6
+15
+15
+16
+10
+6f2d879fbba3355106942bdd8c7030d585524c210ccd244550a8daa2d479fcbe  gradle/index.json
+83dfca8699bb5355c637b6bd124bbefbc230993f4eac1c218d6d0a0017de0b50  gradle-single/index.json
+44952c7b1a81260bf57c3e4a70f2574bf33d3367f1015762702a9760e200d160  sbt/acme-tasks-api-licenses.csv
+  i Files processed:
+  - biome.json
+  - oss-inventory/test/fixtures.test.ts
+  - vitest.config.ts
+  i Files fixed:
+```
+
+- What follows: nothing in F2–F6 has moved, so the contract's toolchain assumptions hold for the run.
+  Inside the repository `pnpm --version` answers `11.28.0`, as F2 predicted for `packageManager`; the
+  twelve fixture checksums equal those in `oss-inventory/fixtures/PROVENANCE.md` byte for byte, so the
+  G1 parsers may be written against exactly these bytes. Two tools not named in F1–F17 are also usable:
+  `jq` 1.6, which the run uses to read fixtures from the shell (never from the tool's own code), and
+  Biome, whose `files.includes` currently resolves to three files because the tool directories of
+  G1–G4 do not exist yet — the count grows as they are added, which makes it a useful coverage check
+  rather than a constant.
+- Decisions that depend on it: that G0 freezes the contract unchanged (no "Contract changes" entry);
+  the fixture-based tests of G1; using `jq` in the shell only.
+
+### F19: The fixtures force exactly eight name aliases and one URL alias, and exactly two dependencies stay UNKNOWN
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G1), on the host, from the committed fixtures
+- Commands (the first three list every distinct declared name and every null-name entry; the fourth
+  asks spdx-license-list which of those names is already an SPDX id; the last runs the finished tool
+  over all three reports with no overrides):
+
+```
+jq -r '[.dependencies[].moduleLicenses[].moduleLicense] | unique | .[] | tostring' oss-inventory/fixtures/gradle/index.json
+awk -F'(' 'NR>1 {print $1}' oss-inventory/fixtures/sbt/acme-tasks-api-licenses.csv | cut -d, -f2 | sed 's/ *$//' | sort -u
+jq -r '.dependencies[] | . as $d | .moduleLicenses[] | select(.moduleLicense == null) | "\($d.moduleName) \(.moduleLicenseUrl)"' oss-inventory/fixtures/gradle/index.json
+node -e "import('spdx-license-list/full.js').then(m => { const ids = Object.keys(m.default); for (const n of process.argv.slice(1)) console.log(ids.some(i => i.toLowerCase() === n.toLowerCase()), JSON.stringify(n)) })" <each name above>
+pnpm inventory -- --pnpm oss-inventory/fixtures/pnpm/acme-tasks-web.json --pnpm-root . --sbt oss-inventory/fixtures/sbt/acme-tasks-api-licenses.csv --gradle oss-inventory/fixtures/gradle/index.json --out <tmp>/f-noov
+```
+
+- Output (the first three as printed; the fourth's answers are summarised in the two lines marked
+  `spdx:`; the last command's stdout filtered to the lines about counts and failures):
+
+```
+null
+Apache 2.0
+Apache License, Version 2.0
+EPL 1.0
+EPL-2.0
+LGPL-2.1-only
+MIT
+MPL 2.0
+Public Domain
+The Apache License, Version 2.0
+The Apache Software License, Version 2.0
+
+Apache-2.0
+BSD-2-Clause
+LGPL-2.1-only
+MIT
+MIT License
+The MIT License
+
+com.h2database:h2 https://h2database.com/html/license.html
+org.jspecify:jspecify https://www.apache.org/licenses/LICENSE-2.0
+
+spdx: true  for Apache-2.0, BSD-2-Clause, EPL-2.0, LGPL-2.1-only, MIT
+spdx: false for Apache 2.0, "Apache License, Version 2.0", EPL 1.0, MPL 2.0,
+            "The Apache License, Version 2.0", "The Apache Software License, Version 2.0",
+            MIT License, The MIT License, Public Domain
+
+UNKNOWN: 2
+56 dependencies
+UNKNOWN gradle:aopalliance:aopalliance@1.0: no SPDX id for "Public Domain"
+UNKNOWN gradle:com.h2database:h2@2.5.252: no SPDX id for "(https://h2database.com/html/license.html)"
+2 failure(s)
+```
+
+- What follows: nine declared names are not SPDX ids. Eight of them denote exactly one license and
+  one version and become aliases; the ninth, `Public Domain`, does not — a public-domain dedication
+  has no SPDX id at all — so aopalliance stays UNKNOWN and is decided by the human ruling of F17.
+  Of the two null-name entries, only jspecify's Apache URL becomes a URL alias; H2's URL points at a
+  dual-license page, which is a reading rather than a spelling, so H2 stays UNKNOWN too — and it
+  stays UNKNOWN although its other two entries map, which is the rule of F10 made visible. Both
+  `https://www.apache.org/licenses/LICENSE-2.0` and `.../LICENSE-2.0.txt` occur in the Gradle
+  fixture and are two different keys under SCOPE.md's comparison rule, so only the first is in the
+  table.
+- Decisions that depend on it: the content of `oss-inventory/aliases.yml` (8 names, 1 URL and
+  nothing else); the two sample overrides staying necessary; PROGRESS.md AC-4.
+
+### F20: The pnpm sample resolves to 25 production packages under five license strings, each shipping one license file
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G1), on the host, after `pnpm install`
+- Commands:
+
+```
+pnpm --filter acme-tasks-web licenses list --json --prod > <tmp>/live.json
+jq -r 'to_entries[] | "\(.key): \([.value[] | .versions[]] | length)"' <tmp>/live.json | sort
+jq '[.[][]] | length' <tmp>/live.json; jq '[.[][].paths[]] | length' <tmp>/live.json
+jq -r '.[][] | .paths[]' <tmp>/live.json | while read -r p; do find "$p" -maxdepth 1 -type f \( -name 'LICENSE*' -o -name 'LICENCE*' -o -name 'COPYING*' -o -name 'NOTICE*' \) -printf '%f\n'; done | sort | uniq -c
+```
+
+- Output:
+
+```
+0BSD: 1
+Apache-2.0: 1
+BSD-3-Clause: 1
+ISC: 1
+MIT: 21
+25
+25
+     22 LICENSE
+      1 LICENSE.md
+      2 LICENSE.txt
+```
+
+- What follows: the sample has 25 production dependencies, one version and one path each, so the
+  one-row-per-name-and-version rule gives 25 rows and no path has to be matched to a version here.
+  All five license strings are SPDX ids, so the sample exercises step 1 of the normalisation and
+  never reaches the alias table. Each of the 25 packages ships exactly one license file, which is
+  why the full sample run's `notices/pnpm/` holds 25 files beside the 9 under `notices/gradle/`.
+  A copy of this report with the 25 absolute paths made relative to the repository root is committed
+  as `oss-inventory/fixtures/pnpm/acme-tasks-web.json`; with the paths blanked out on both sides the
+  committed file and the live one are identical, so nothing but the paths was changed.
+- Decisions that depend on it: the committed pnpm fixture; PROGRESS.md AC-3 and AC-7.
+
+### F21: A whitelist `info/exclude` hides a nested asset path from git unless its parent directories are negated too
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G2), on the host, in a throwaway product repository whose
+  path contains a space
+- Commands (one bare assets repository over a product working tree that holds a top-level
+  `assets/a.md` and a nested `docs/assets/n.md`; the first `info/exclude` is the whitelist exactly as
+  SCOPE.md words it, the second adds the parent lines):
+
+```
+printf '/*\n!/assets/\n!/docs/assets/\n!/.ignore\n' > "$G/info/exclude"
+git --git-dir="$G" --work-tree="$P" status --porcelain
+git --git-dir="$G" --work-tree="$P" add -A && git --git-dir="$G" --work-tree="$P" ls-files
+rm -f "$G/index"
+printf '/*\n!/assets/\n!/docs/\n/docs/*\n!/docs/assets/\n!/.ignore\n' > "$G/info/exclude"
+git --git-dir="$G" --work-tree="$P" add -A && git --git-dir="$G" --work-tree="$P" ls-files
+```
+
+- Output:
+
+```
+?? assets/
+assets/a.md
+
+assets/a.md
+docs/assets/n.md
+```
+
+- What follows: `/*` excludes `docs` itself, and git never descends into an excluded directory, so
+  `!/docs/assets/` is never reached: with the whitelist as worded, the nested asset is invisible to
+  `git status` and `git add`, silently. Negating each parent directory and re-excluding its other
+  contents (`!/docs/`, then `/docs/*`) makes git descend and the leaf negation apply. The same shape
+  was then checked on a two-level path (`!/a/`, `/a/*`, `!/a/b/`, `/a/b/*`, `!/a/b/c/` → tracked
+  `a/b/c/deep.md`), on two paths sharing one parent (`docs/assets/` and `docs/specs/`, both tracked),
+  on a file rather than a directory (`docs/NOTES.md`, tracked) and on a path with spaces in both
+  components (`my docs/my assets/with space.md`, tracked).
+- Decisions that depend on it: `assets init` writes the parent lines into the assets repository's
+  `info/exclude`; the reading recorded under the G2 heading of PROGRESS.md.
+
+### F22: ripgrep hides what `.git/info/exclude` hides, and a root `.ignore` brings it back — `.ignore` itself only if it negates itself
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G2), on the host, in the same product repository
+- Commands (`rg` 15.2.0 from the run's PATH, F4; the product's exclude block hides the two asset
+  paths and `.ignore`):
+
+```
+printf '/assets/\n/docs/assets/\n/.ignore\n' > .git/info/exclude
+rm -f .ignore;                                              rg --files --hidden | sort
+printf '!/assets/\n!/docs/assets/\n'          > .ignore;    rg --files --hidden | sort
+printf '!/assets/\n!/docs/assets/\n!/.ignore\n' > .ignore;  rg --files --hidden | sort
+```
+
+- Output (the lines that change; `.git/**`, `src/app.txt` and the other files are listed in all
+  three runs and are left out here):
+
+```
+# no .ignore
+docs/NOTES.md
+docs/specs/s.md
+
+# .ignore negating the two asset paths
+assets/a.md
+docs/assets/n.md
+docs/NOTES.md
+docs/specs/s.md
+
+# .ignore also negating itself
+.ignore
+assets/a.md
+docs/assets/n.md
+docs/NOTES.md
+docs/specs/s.md
+```
+
+- What follows: this is the reason `.ignore` exists at all — without it the assets disappear from
+  search without a word. Unlike git's own whitelist (F21), ripgrep needs no parent negation here,
+  because the product's exclude block names the asset paths directly instead of excluding
+  everything with `/*`. And because the product's block also hides `/.ignore`, the file is itself
+  invisible to `rg` unless the block in `.ignore` negates `/.ignore` as well — which check 3 of
+  SCOPE.md ("every file the assets repository tracks is listed by `rg --files --hidden`") requires,
+  since `.ignore` belongs to the assets repository and is tracked by it.
+- Decisions that depend on it: `assets init` writes `!/.ignore` into the `.ignore` block; `assets
+  check`'s search check; the reading recorded under the G2 heading of PROGRESS.md.
+
+### F23: git octal-quotes a path outside ASCII while ripgrep prints it raw, so `assets check` failed on a correct layout
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G3), on the host, in a throwaway product repository, after
+  the goal bus reported the defect
+- Commands (one asset path, `docs/assets/`, holding an ASCII file and a Japanese one; the assets
+  are committed and the layout is otherwise the one `assets check` passes on):
+
+```
+assets ls-files
+rg --files --hidden | grep -v '^\.git/'
+assets check; echo "exit=$?"
+printf 'wip\n' > 'docs/assets/未追跡.md'; assets check; echo "exit=$?"
+# after the fix: every ls-files and status --porcelain the script runs is `git -c core.quotePath=false …`
+assets check; echo "exit=$?"
+```
+
+- Output:
+
+```
+.ignore
+docs/assets/spec.md
+"docs/assets/\346\227\245\346\234\254\350\252\236 \344\273\225\346\247\230.md"
+
+.ignore
+src/app.txt
+docs/assets/spec.md
+docs/assets/日本語 仕様.md
+
+hidden-from-search: "docs/assets/\346\227\245\346\234\254\350\252\236 \344\273\225\346\247\230.md" is tracked by the assets repository but rg --files --hidden does not list it
+check failed: 1 violation(s)
+exit=1
+
+hidden-from-search: "docs/assets/\346\227\245\346\234\254\350\252\236 \344\273\225\346\247\230.md" is tracked by the assets repository but rg --files --hidden does not list it
+stray-status: the assets repository's status shows the product path "docs/assets/\346\234\252\350\277\275\350\267\241.md"
+check failed: 2 violation(s)
+exit=1
+
+check passed: 1 asset path(s), 0 violations
+exit=0
+```
+
+- What follows: with git's default `core.quotePath=true`, `ls-files` and `status --porcelain` print
+  a path outside ASCII octal-escaped and wrapped in quotes, while `rg --files --hidden` prints the
+  bytes on disk. `assets check` compares the two lists line by line with `comm`, so every
+  non-ASCII asset looked missing from the search, and every non-ASCII path under an asset path
+  looked like a stray product path: two false violations on a layout that was correct. Running
+  every `ls-files` and `status --porcelain` through `git -c core.quotePath=false` makes both sides
+  print the same bytes and the check passes. The passthrough is left alone: `assets ls-files` is
+  git, and still quotes, which is what the user would get from git itself. A path holding a
+  literal quote or a newline is still quoted by git; SCOPE.md's portability clause promises spaces,
+  and this limit belongs in the README's 「制約・既知の限界」.
+- Decisions that depend on it: the `product_git`/`assets_git` helpers in `two-repos-one-worktree/assets`;
+  the self-test case `check passes when an asset file has a name outside ASCII`.
+
+### F24: squid drops to the user `proxy` and cannot write to /dev/stdout; the image's entrypoint tails /var/log/squid instead
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G3), on the host, in the relay test's own Compose project
+- Commands (the first configuration used `access_log stdio:/dev/stdout squid` and
+  `cache_log stdio:/dev/stderr`, which is the usual way to get a container's logs onto stdout):
+
+```
+pnpm relay:test                      # with access_log on /dev/stdout; the relay never came up
+docker run --rm --network none --entrypoint sh <squid digest> -c 'cat "$(command -v entrypoint.sh)"'
+pnpm relay:test                      # with access_log on /var/log/squid/access.log
+```
+
+- Output:
+
+```
+relay-1 | 2026/10/01 10:26:40| FATAL: Cannot open '/dev/stdout' for writing.
+relay-1 | 	The parent directory must be writeable by the
+relay-1 | 	user 'proxy', which is the cache_effective_user
+relay-1 | 	set in squid.conf.
+relay-1 | 2026/10/01 10:26:40| Squid Cache (Version 6.14): Terminated abnormally.
+
+tail -F /var/log/squid/access.log 2>/dev/null &
+tail -F /var/log/squid/error.log 2>/dev/null &
+tail -F /var/log/squid/store.log 2>/dev/null &
+tail -F /var/log/squid/cache.log 2>/dev/null &
+/usr/sbin/squid -Nz
+/usr/sbin/squid "$@"
+
+7 passed, 0 failed
+```
+
+- What follows: the squid image starts as root (F5) but squid itself drops to `cache_effective_user
+  proxy` before opening its logs, so the `/dev/stdout` trick fails. The image's own entrypoint
+  already tails the four files under `/var/log/squid/` to the container's stdout, so
+  `squid.conf.template` logs there and `docker compose logs` shows the access log anyway. The same
+  paths are the standard ones on a Debian or Ubuntu machine, so the template is not
+  container-specific.
+- Decisions that depend on it: `access_log stdio:/var/log/squid/access.log squid` and
+  `cache_log /var/log/squid/cache.log` in `pr-compile-check/relay/squid.conf.template`; AC-23's
+  count of the password in `docker compose logs` being meaningful at all.
+
+### F25: through the relay the whole chain works, and with the wrong upstream password the client gets the 407 F12 is about
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G3), on the host, `pnpm relay:test`, twice in a row
+- Commands:
+
+```
+pnpm relay:test                      # the project is ci-devex-relay-test; credentials per run
+docker ps --filter name=<host-squid> --format '{{.Names}} {{.Status}} {{.Ports}}'
+ss -ltnH | awk '{print $4}' | sed 's/.*://' | awk '$1>=18440 && $1<=18449' | wc -l
+```
+
+- Output (the run's seven lines; the second run gave the same seven with different random values):
+
+```
+ok   http through the relay reaches the origin, authenticated at the upstream: status 200, body "mock origin: the relay reached me\n", 2 forwarded line(s) with credentialsMatched true
+ok   CONNECT through the relay opens a tunnel to the echo, authenticated at the upstream: HTTP/1.1 200 Connection established, echoed "tunnel-d331a1810ea0", 1 tunnelled line(s) with credentialsMatched true
+ok   a request straight to the upstream without credentials gets 407: status 407
+ok   the relay is published on 127.0.0.1 only: docker compose port -> 127.0.0.1:18441; ss -ltn -> LISTEN  0        4096           127.0.0.1:18441          0.0.0.0:*
+ok   no credential appears in the containers’ logs: 0 occurrence(s)
+ok   no container of the run has a proxy variable in its environment: none in relay, mock-upstream, mock-origin
+ok   control: with the wrong upstream credentials the request does not succeed: status 407, 2 rejection(s) logged with credentialsMatched false
+
+7 passed, 0 failed
+
+<host-squid> Up 3 weeks 127.0.0.1:3128->3128/tcp
+0
+```
+
+- What follows: the relay built from the template's own files forwards both an absolute-URI request
+  and a `CONNECT` to the parent with the parent's credentials, and the client needs none. The
+  control shows what happens when the relay's own credentials are wrong: the upstream answers 407
+  and squid passes it down to the client, which is exactly the situation F12 describes for sbt —
+  a client that cannot answer a 407 simply stops there. The two mocks' logs name no credential at
+  all, and no container of the run has a proxy variable in its environment. The host's other squid,
+  `<host-squid>` on 3128, is not the run's and was not touched; after the run no port in
+  18440-18449 is listening.
+- Decisions that depend on it: the relay's design as SCOPE.md describes it; README 「結果」; the
+  runbook's section on the relay.
+
+### F26: On this Linux host the bind arm is the faster one for `install`, and the two arms are equal for `build` and `first-request`
+
+- Measured on: 2026-10-01 / last re-measured: 2026-10-01
+- Measured by: the implementation run (G4), on the host, with this repository's harness
+- Commands (two full measurements, the second into a temporary directory; one Docker-using command
+  at a time, neither backgrounded):
+
+```
+pnpm ioab                                   # 5 runs per arm, 1000 modules, into devcontainer-io-ab/results
+pnpm ioab -- --out <tmp>/second             # the same, a second time
+```
+
+- Output (the summary of each; the twenty per-run JSON lines are in the two results files):
+
+```
+# first measurement, committed as results/2026-10-01-linux-x64.json
+| install       | bind   |  876 |  870 |  894 | 5 |
+| install       | volume | 1067 | 1038 | 1103 | 5 |
+| build         | bind   | 1063 | 1060 | 1064 | 5 |
+| build         | volume | 1083 | 1057 | 1102 | 5 |
+| first-request | bind   |  222 |  221 |  243 | 5 |
+| first-request | volume |  223 |  222 |  240 | 5 |
+ratios bind ÷ volume: install 0.82, build 0.98, first-request 1
+
+# second measurement, into a temporary directory
+| install       | bind   |  884 |  875 |  899 | 5 |
+| install       | volume | 1066 | 1057 | 1166 | 5 |
+| build         | bind   | 1066 | 1036 | 1095 | 5 |
+| build         | volume | 1067 | 1039 | 1100 | 5 |
+| first-request | bind   |  222 |  221 |  242 | 5 |
+| first-request | volume |  223 |  222 |  245 | 5 |
+ratios bind ÷ volume: install 0.83, build 1, first-request 1
+
+machine: Linux 5.4.0-216-generic (x64), 12 × Intel(R) Xeon(R) E-2146G CPU @ 3.50GHz, 46.9 GiB,
+         Docker 28.1.1 on Ubuntu 20.04.6 LTS, storage driver overlay2
+files: 891 under node_modules, 1003 under dist; body "modules=1000 total=5010524" every time
+wall clock: 58 s per full measurement
+```
+
+- What follows: on Linux there is nothing for named volumes to win, and for the install phase there
+  is something to lose. `build` and `first-request` are the same to within a few milliseconds
+  (ratios 0.98 to 1.00), while `install` is about 190 ms — 18 per cent — slower on the named volume
+  in both measurements, with the bind and volume ranges not overlapping in either. **The cause is
+  not measured and is not guessed at.** This refines F13's "within noise" (see the Superseded box
+  under it) without changing its conclusion: the practice's move to named volumes was a Windows
+  answer to a Windows cost (F14), and this host cannot show that cost.
+
+- **Corrected on 2026-10-01 by the run that wrote this entry**, after the goal bus checked the
+  premise of an earlier sentence. That sentence read "a bind mount on this host is the native
+  filesystem and the volume adds a layer that the install, which writes 891 files, pays for". The
+  premise does not hold here, and the measurement that shows it is:
+
+  ```
+  docker info --format 'DockerRootDir={{.DockerRootDir}} Driver={{.Driver}}'
+  df -h /var/lib/docker .
+  ```
+
+  ```
+  DockerRootDir=/var/lib/docker Driver=overlay2
+  Filesystem      Size  Used Avail Use% Mounted on
+  /dev/sdb2       916G  148G  721G  18% /
+  /dev/sdb2       916G  148G  721G  18% /
+  ```
+
+  A local named volume on this host is a directory under `/var/lib/docker/volumes`, on the same
+  device `/dev/sdb2` as the bind-mounted repository — there is no extra layer to pay for. The
+  explanation is withdrawn; the numbers stand. Nothing in the README may offer a mechanism either.
+- Decisions that depend on it: `devcontainer-io-ab/results/2026-10-01-linux-x64.{json,md}`; the
+  README's 「結果」 and 「制約・既知の限界」, which must say what was measured rather than repeat
+  "the arms do not differ"; PROGRESS.md AC-29 and AC-30.

@@ -1,0 +1,36 @@
+# Arm B — the four write-heavy directories on named volumes.
+#
+# The project itself is still bind-mounted, exactly as in arm A; node_modules, dist, the pnpm store
+# and the metadata cache are moved off it onto named volumes. This is the change the practice made.
+#
+# The only difference from compose.bind.yml is the volumes block (and the project name).
+name: ci-devex-ioab-volume
+
+services:
+  app:
+    image: ci-devex-ioab:local
+    # No container of this run reaches the network (goal-pack/facts.md, F7).
+    network_mode: none
+    working_dir: /w
+    init: true
+    command: ['sleep', 'infinity']
+    environment:
+      CI: 'true'
+      IOAB_STORE: /w/.store
+      IOAB_CACHE: /w/.cache
+    volumes:
+      - ./sample:/w
+      - node-modules:/w/node_modules
+      - dist:/w/dist
+      - store:/w/.store
+      - cache:/w/.cache
+
+volumes:
+  node-modules:
+    name: ci-devex-ioab-node-modules
+  dist:
+    name: ci-devex-ioab-dist
+  store:
+    name: ci-devex-ioab-store
+  cache:
+    name: ci-devex-ioab-cache
